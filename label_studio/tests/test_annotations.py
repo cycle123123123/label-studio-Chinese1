@@ -1,6 +1,7 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 """
 import json
+import uuid
 
 import pytest
 import requests_mock
@@ -237,6 +238,67 @@ def test_accuracy_on_delete(business_client, project_with_max_annotations_2, ann
     assert r.status_code == 204
     task = Task.objects.get(id=task_id)
     assert not task.is_labeled
+
+
+@pytest.mark.django_db
+def test_submission_conflict_when_task_already_completed(
+    business_client, annotator_client, configured_project_min_annotations_1
+):
+    task = Task.objects.first()
+    invite_client_to_project(annotator_client, task.project)
+
+    annotation_payload = {
+        'task': task.id,
+        'result': json.dumps(
+            [
+                {
+                    'from_name': 'text_class',
+                    'to_name': 'text',
+                    'type': 'labels',
+                    'value': {'labels': ['class_A'], 'start': 0, 'end': 1},
+                }
+            ]
+        ),
+    }
+
+    first_response = business_client.post(
+        reverse('tasks:api:task-annotations', kwargs={'pk': task.id}), data=annotation_payload
+    )
+    assert first_response.status_code == 201
+
+    second_response = annotator_client.post(
+        reverse('tasks:api:task-annotations', kwargs={'pk': task.id}), data=annotation_payload
+    )
+    assert second_response.status_code == 409
+    assert 'already been submitted' in second_response.json()['detail']
+
+
+@pytest.mark.django_db
+def test_submission_conflict_with_outdated_lock_id(business_client, configured_project_min_annotations_1):
+    task = Task.objects.first()
+    lock_user = getattr(business_client, 'user', None) or business_client.business.admin
+    task.set_lock(lock_user)
+
+    annotation_payload = {
+        'task': task.id,
+        'result': json.dumps(
+            [
+                {
+                    'from_name': 'text_class',
+                    'to_name': 'text',
+                    'type': 'labels',
+                    'value': {'labels': ['class_A'], 'start': 0, 'end': 1},
+                }
+            ]
+        ),
+        'unique_id': str(uuid.uuid4()),
+    }
+
+    response = business_client.post(
+        reverse('tasks:api:task-annotations', kwargs={'pk': task.id}), data=annotation_payload
+    )
+    assert response.status_code == 409
+    assert 'outdated' in response.json()['detail']
 
 
 # @pytest.mark.django_db

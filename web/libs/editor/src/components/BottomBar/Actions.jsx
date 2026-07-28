@@ -1,5 +1,6 @@
 import { IconInfoOutline, IconSettings } from "@humansignal/icons";
 import { Button, Space } from "@humansignal/ui";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../utils/bem";
 import { isSelfServe } from "../../utils/billing";
 import { FF_BULK_ANNOTATION, isFF } from "../../utils/feature-flags";
@@ -9,6 +10,7 @@ import { GroundTruth } from "../CurrentEntity/GroundTruth";
 import { EditingHistory } from "./HistoryActions";
 
 export const Actions = ({ store }) => {
+  const { t } = useTranslation();
   const annotationStore = store.annotationStore;
   const entity = annotationStore.selected;
   const isPrediction = entity?.type === "prediction";
@@ -22,11 +24,11 @@ export const Actions = ({ store }) => {
       {store.description && store.hasInterface("instruction") && (
         <Button
           type="text"
-          aria-label="Instructions"
+          aria-label={t("Instructions", "Instructions")}
           size="small"
           variant="neutral"
           look="string"
-          tooltip="Show instructions"
+          tooltip={t("lsf.actions.show_instructions", "Show instructions")}
           onClick={() => store.toggleDescription()}
         >
           <IconInfoOutline />
@@ -34,12 +36,12 @@ export const Actions = ({ store }) => {
       )}
       <Button
         type="text"
-        aria-label="Settings"
+        aria-label={t("Settings", "Settings")}
         size="small"
         look="string"
         variant="neutral"
         onClick={() => store.toggleSettings()}
-        tooltip="Settings"
+        tooltip={t("Settings", "Settings")}
         className="!p-0"
       >
         <IconSettings />

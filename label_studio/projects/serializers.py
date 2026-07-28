@@ -31,6 +31,7 @@ from projects.models import Project, ProjectImport, ProjectOnboarding, ProjectRe
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
+from tasks.assignment import has_manual_assignment, is_assignment_enforced_for_user
 from tasks.models import Task
 from users.serializers import UserSimpleSerializer
 
@@ -97,6 +98,7 @@ class ProjectSerializer(FlexFieldsModelSerializer):
 
     queue_total = serializers.SerializerMethodField()
     queue_done = serializers.SerializerMethodField()
+    assignment_settings = serializers.SerializerMethodField()
 
     @property
     def user_id(self):
@@ -213,6 +215,7 @@ class ProjectSerializer(FlexFieldsModelSerializer):
             'show_instruction',
             'show_skip_button',
             'enable_empty_annotation',
+            'require_comment_on_skip',
             'show_annotation_history',
             'organization',
             'color',
@@ -248,6 +251,7 @@ class ProjectSerializer(FlexFieldsModelSerializer):
             'finished_task_number',
             'queue_total',
             'queue_done',
+            'assignment_settings',
             'config_suitable_for_bulk_annotation',
         ]
 
@@ -305,6 +309,18 @@ class ProjectSerializer(FlexFieldsModelSerializer):
         result = already_done_tasks.distinct().count()
 
         return result
+
+    def get_assignment_settings(self, project):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if user and is_assignment_enforced_for_user(project, user):
+            distribution = 'assigned_only'
+        else:
+            distribution = 'assigned_only' if has_manual_assignment(project) else 'auto_distribution'
+        return {
+            'label_stream_task_distribution': distribution,
+            'project': project.id,
+        }
 
 
 class ProjectCountsSerializer(ProjectSerializer):

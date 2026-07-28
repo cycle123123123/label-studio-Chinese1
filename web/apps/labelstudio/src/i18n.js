@@ -1,5 +1,3 @@
-// D:\label-studio\web\apps\labelstudio\src\i18n.js
-console.log("--- i18n.js file has been loaded! ---"); // <--- 添加这句测试日志
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
 import LanguageDetector from "i18next-browser-languagedetector";
@@ -17,9 +15,9 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    lng: 'zh-CN', // <--- 强制使用中文进行测试
-    fallbackLng: "en-US",
-    debug: true,
+    fallbackLng: ["en-US", "zh-CN"],
+    supportedLngs: ["en-US", "zh-CN"],
+    debug: false,
     interpolation: {
       escapeValue: false,
     },

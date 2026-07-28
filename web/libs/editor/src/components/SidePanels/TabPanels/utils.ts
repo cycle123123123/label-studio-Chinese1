@@ -1,4 +1,5 @@
 import type { FC, MutableRefObject, ReactNode } from "react";
+import i18next from "i18next";
 import { clamp } from "../../../utils/utilities";
 import {
   DEFAULT_PANEL_HEIGHT,
@@ -127,35 +128,47 @@ export const panelComponents: { [key: string]: FC<PanelProps> } = {
   info: Info as FC<PanelProps>,
 };
 
+const getPanelTitle = (name: string) => {
+  const titleMap: Record<string, string> = {
+    regions: i18next.t("lsf.regions", "Regions"),
+    history: i18next.t("lsf.annotation_history", "History"),
+    relations: i18next.t("lsf.relations", "Relations"),
+    info: i18next.t("lsf.info", "Info"),
+    comments: i18next.t("lsf.comments", "Comments"),
+  };
+
+  return titleMap[name] ?? name;
+};
+
 const panelViews = [
   {
     name: "regions",
-    title: "Regions",
+    title: getPanelTitle("regions"),
     component: panelComponents.regions as FC<PanelProps>,
     active: true,
   },
   {
     name: "history",
-    title: "History",
+    title: getPanelTitle("history"),
     component: panelComponents.history as FC<PanelProps>,
     active: false,
   },
 
   {
     name: "relations",
-    title: "Relations",
+    title: getPanelTitle("relations"),
     component: panelComponents.relations as FC<PanelProps>,
     active: false,
   },
   {
     name: "info",
-    title: "Info",
+    title: getPanelTitle("info"),
     component: panelComponents.info as FC<PanelProps>,
     active: true,
   },
   {
     name: "comments",
-    title: "Comments",
+    title: getPanelTitle("comments"),
     component: panelComponents.comments as FC<PanelProps>,
     active: false,
   },
@@ -296,8 +309,9 @@ export const restoreComponentsToState = (panelData: Record<string, PanelBBox>) =
   Object.keys(updatedPanels).forEach((panelName) => {
     const panel = updatedPanels[panelName];
 
-    panel.panelViews.forEach((view: { name: string; component: FC<PanelProps> }) => {
+    panel.panelViews.forEach((view: { name: string; title: string; component: FC<PanelProps> }) => {
       view.component = panelComponents[view.name];
+      view.title = getPanelTitle(view.name);
     });
   });
 

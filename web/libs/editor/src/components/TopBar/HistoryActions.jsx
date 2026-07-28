@@ -1,10 +1,12 @@
 import { observer } from "mobx-react";
 import { IconRedo, IconRemove, IconUndo } from "@humansignal/icons";
 import { Button } from "@humansignal/ui";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../utils/bem";
 import "./HistoryActions.scss";
 
 export const EditingHistory = observer(({ entity }) => {
+  const { t } = useTranslation();
   const { history } = entity;
 
   return (
@@ -12,9 +14,9 @@ export const EditingHistory = observer(({ entity }) => {
       <Button
         variant="neutral"
         look="string"
-        aria-label="Undo"
+        aria-label={t("lsf.history_actions.undo", "Undo")}
         className="!p-0"
-        tooltip="Undo"
+        tooltip={t("lsf.history_actions.undo", "Undo")}
         disabled={!history?.canUndo}
         onClick={() => entity.undo()}
       >
@@ -23,9 +25,9 @@ export const EditingHistory = observer(({ entity }) => {
       <Button
         variant="neutral"
         look="string"
-        aria-label="Redo"
+        aria-label={t("lsf.history_actions.redo", "Redo")}
         className="!p-0"
-        tooltip="Redo"
+        tooltip={t("lsf.history_actions.redo", "Redo")}
         disabled={!history?.canRedo}
         onClick={() => entity.redo()}
         leading={<IconRedo />}
@@ -33,8 +35,8 @@ export const EditingHistory = observer(({ entity }) => {
       <Button
         look="string"
         variant="negative"
-        aria-label="Reset"
-        tooltip="Reset"
+        aria-label={t("lsf.history_actions.reset", "Reset")}
+        tooltip={t("lsf.history_actions.reset", "Reset")}
         className="!p-0"
         disabled={!history?.canUndo}
         onClick={() => history?.reset()}

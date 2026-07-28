@@ -47,6 +47,11 @@ _api_urlpatterns = [
     path('<int:pk>/model-versions/', api.ProjectModelVersions.as_view(), name='project-model-versions'),
     # List all annotators for project
     path('<int:pk>/annotators/', api.ProjectAnnotatorsAPI.as_view(), name='project-annotators'),
+    # Assignment management
+    path('<int:pk>/assignments/', api.ProjectAssignmentsAPI.as_view(), name='project-assignments'),
+    path('<int:pk>/assignment-audit/', api.ProjectAssignmentAuditLogAPI.as_view(), name='project-assignment-audit'),
+    path('<int:pk>/workflow-audit/', api.ProjectWorkflowAuditLogAPI.as_view(), name='project-workflow-audit'),
+    path('<int:pk>/stats/', api.ProjectStatisticsAPI.as_view(), name='project-stats'),
 ]
 
 _api_urlpatterns_templates = [

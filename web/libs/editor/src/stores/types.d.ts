@@ -210,4 +210,5 @@ export type MSTStore = {
   acceptAnnotation: (options?: any) => void;
   skipTask: (options?: any) => void;
   unskipTask: (options?: any) => void;
+  goToNextTask: (options?: any) => void;
 };

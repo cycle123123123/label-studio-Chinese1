@@ -62,6 +62,11 @@ export const API_CONFIG = {
     predictWithML: "POST:/ml/:pk/predict/test",
     projectModelVersions: "/projects/:pk/model-versions",
     deletePredictions: "DELETE:/projects/:pk/model-versions",
+    projectAssignments: "GET:/projects/:pk/assignments/",
+    updateProjectAssignments: "POST:/projects/:pk/assignments/",
+    projectAssignmentAudit: "GET:/projects/:pk/assignment-audit/",
+    projectWorkflowAudit: "GET:/projects/:pk/workflow-audit/",
+    projectStats: "GET:/projects/:pk/stats/",
     modelVersions: "/ml/:pk/versions",
     mlInteractive: "POST:/ml/:pk/interactive-annotating",
 

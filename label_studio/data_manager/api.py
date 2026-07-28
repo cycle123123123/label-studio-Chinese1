@@ -633,6 +633,7 @@ class ProjectStateAPI(APIView):
                     'retrieve_tasks_predictions',
                     'predictions_to_annotations',
                     'remove_duplicates',
+                    'assign_tasks',
                     'delete_tasks',
                     'delete_ground_truths',
                     'delete_tasks_annotations',

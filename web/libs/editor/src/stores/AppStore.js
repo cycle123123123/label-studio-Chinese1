@@ -665,10 +665,37 @@ export default types
       }
     }
 
-    function skipTask(extraData) {
+    function skipTask(extraData = {}) {
       if (self.isSubmitting) return;
+
+      let payload = extraData ?? {};
+
+      if (self.hasInterface("comments:skip")) {
+        const currentReason = payload.skip_reason ?? payload.comment;
+        const normalizedReason = typeof currentReason === "string" ? currentReason.trim() : "";
+
+        let reason = normalizedReason;
+
+        if (!reason) {
+          const input = window.prompt("Please enter a skip reason");
+          if (input === null) return;
+          reason = input.trim();
+        }
+
+        if (!reason) {
+          window.alert("Skip reason is required");
+          return;
+        }
+
+        payload = {
+          ...payload,
+          comment: reason,
+          skip_reason: reason,
+        };
+      }
+
       handleSubmittingFlag(() => {
-        getEnv(self).events.invoke("skipTask", self, extraData);
+        getEnv(self).events.invoke("skipTask", self, payload);
         self.incrementQueuePosition();
       }, "Error during skip, try again");
     }
@@ -962,6 +989,17 @@ export default types
       }
     }
 
+    async function goToNextTask() {
+      if (self.isSubmitting) return;
+
+      const annotation = self.annotationStore.selected;
+
+      // Preserve current work before loading the next item in queue.
+      await annotation.saveDraft();
+      await getEnv(self).events.invoke("nextTask");
+      self.incrementQueuePosition();
+    }
+
     function prevTask(_e, shouldGoBack = false) {
       const length = shouldGoBack
         ? self.taskHistory.length - 1
@@ -1037,6 +1075,7 @@ export default types
 
       addAnnotationToTaskHistory,
       nextTask,
+      goToNextTask,
       prevTask,
       postponeTask,
       incrementQueuePosition,

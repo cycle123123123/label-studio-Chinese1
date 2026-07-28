@@ -1,8 +1,10 @@
 """This file and its contents are licensed under the Apache License 2.0. Please see the included NOTICE for copyright information and LICENSE for a copy of the license.
 """
+import csv
 import logging
 import os
 import pathlib
+from datetime import timedelta
 
 from core.filters import ListFilter
 from core.label_config import config_essential_data_has_changed
@@ -17,9 +19,12 @@ from core.utils.serializer_to_openapi_params import serializer_to_openapi_params
 from data_manager.functions import filters_ordering_selected_items_exist, get_prepared_queryset
 from django.conf import settings
 from django.db import IntegrityError
-from django.db.models import F
-from django.http import Http404
+from django.db.models import Count, F, Q
+from django.db.models.functions import TruncDate
+from django.http import Http404, HttpResponse
 from django.utils.decorators import method_decorator
+from django.utils.dateparse import parse_date
+from django.utils import timezone
 from django_filters import CharFilter, FilterSet
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
@@ -42,7 +47,7 @@ from projects.serializers import (
     ProjectSummarySerializer,
 )
 from rest_framework import filters, generics, status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.exceptions import ValidationError as RestValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -50,7 +55,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import exception_handler
-from tasks.models import Annotation, Task
+from tasks.assignment import (
+    apply_task_assignments,
+    can_manage_assignments,
+    get_assignable_users,
+    is_assignment_enforced_for_user,
+)
+from tasks.models import Annotation, Task, TaskAssignment, TaskAssignmentAuditLog, TaskWorkflowAuditLog
 from tasks.serializers import (
     NextTaskSerializer,
     TaskSerializer,
@@ -421,8 +432,9 @@ class ProjectNextTaskAPI(generics.RetrieveAPIView):
         project = self.get_object()
         dm_queue = filters_ordering_selected_items_exist(request.data)
         prepared_tasks = get_prepared_queryset(request, project)
+        assigned_flag = is_assignment_enforced_for_user(project, request.user)
 
-        next_task, queue_info = get_next_task(request.user, prepared_tasks, project, dm_queue)
+        next_task, queue_info = get_next_task(request.user, prepared_tasks, project, dm_queue, assigned_flag)
 
         if next_task is None:
             raise NotFound(f'There are no tasks for {request.user}')
@@ -846,6 +858,456 @@ class ProjectModelVersions(generics.RetrieveAPIView):
         count = project.delete_predictions(model_version=model_version)
 
         return Response(data=count)
+
+
+class ProjectAssignmentsAPI(generics.RetrieveAPIView):
+    permission_required = ViewClassPermission(
+        GET=all_permissions.projects_view,
+        POST=all_permissions.projects_change,
+    )
+    queryset = Project.objects.all()
+
+    @staticmethod
+    def _serialize_user(user):
+        if not user:
+            return None
+        full_name = user.get_full_name().strip()
+        display = full_name or user.username or user.email or f'User {user.id}'
+        return {
+            'id': user.id,
+            'display_name': display,
+            'email': user.email,
+        }
+
+    def get(self, request, *args, **kwargs):
+        project = self.get_object()
+        self.check_object_permissions(request, project)
+
+        queryset = TaskAssignment.objects.filter(task__project=project).select_related('task', 'user', 'assigned_by')
+
+        assignee = request.GET.get('assignee')
+        if assignee not in (None, ''):
+            queryset = queryset.filter(user_id=assignee)
+
+        task_id = request.GET.get('task_id')
+        if task_id not in (None, ''):
+            queryset = queryset.filter(task_id=task_id)
+
+        queryset = queryset.order_by('-created_at')
+        page = paginator(queryset, request)
+        page_queryset = page if page is not None else queryset[:100]
+
+        results = [
+            {
+                'task_id': assignment.task_id,
+                'task_inner_id': assignment.task.inner_id,
+                'assignee': self._serialize_user(assignment.user),
+                'assigned_by': self._serialize_user(assignment.assigned_by),
+                'assigned_at': assignment.created_at,
+            }
+            for assignment in page_queryset
+        ]
+
+        members = [
+            {
+                'id': member.id,
+                'display_name': (member.get_full_name().strip() or member.username or member.email or f'User {member.id}'),
+                'email': member.email,
+            }
+            for member in get_assignable_users(project)
+        ]
+
+        return Response(
+            {
+                'results': results,
+                'count': queryset.count(),
+                'members': members,
+                'can_manage': can_manage_assignments(project, request.user),
+            }
+        )
+
+    def post(self, request, *args, **kwargs):
+        project = self.get_object()
+        self.check_object_permissions(request, project)
+
+        if not can_manage_assignments(project, request.user):
+            raise PermissionDenied('Only project owner can manage task assignment')
+
+        raw_assignee = request.data.get('assignee')
+        if raw_assignee in (None, ''):
+            raise RestValidationError({'assignee': 'Assignee is required'})
+        try:
+            assignee_id = int(raw_assignee)
+        except (TypeError, ValueError) as exc:
+            raise RestValidationError({'assignee': 'Invalid assignee value'}) from exc
+
+        task_ids = request.data.get('task_ids') or []
+        if not isinstance(task_ids, list):
+            raise RestValidationError({'task_ids': 'task_ids must be a list'})
+
+        parsed_task_ids = []
+        for task_id in task_ids:
+            try:
+                parsed_task_ids.append(int(task_id))
+            except (TypeError, ValueError):
+                continue
+
+        if not parsed_task_ids:
+            return Response({'processed_items': 0, 'detail': 'No tasks selected'})
+
+        if assignee_id != 0 and not get_assignable_users(project).filter(id=assignee_id).exists():
+            raise RestValidationError({'assignee': 'Selected user is not in this organization'})
+
+        stats = apply_task_assignments(project, parsed_task_ids, assignee_id, request.user)
+
+        if assignee_id == 0:
+            detail = f'Unassigned {stats["unassigned"]} tasks'
+        else:
+            detail = f'Assigned {stats["assigned"] + stats["reassigned"]} tasks'
+
+        return Response({'processed_items': stats['changed'], 'detail': detail})
+
+
+class ProjectAssignmentAuditLogAPI(generics.RetrieveAPIView):
+    permission_required = ViewClassPermission(
+        GET=all_permissions.projects_view,
+    )
+    queryset = Project.objects.all()
+
+    @staticmethod
+    def _serialize_user(user):
+        if not user:
+            return None
+        full_name = user.get_full_name().strip()
+        display = full_name or user.username or user.email or f'User {user.id}'
+        return {
+            'id': user.id,
+            'display_name': display,
+            'email': user.email,
+        }
+
+    def get(self, request, *args, **kwargs):
+        project = self.get_object()
+        self.check_object_permissions(request, project)
+
+        queryset = TaskAssignmentAuditLog.objects.filter(project=project).select_related(
+            'task', 'assignee', 'previous_assignee', 'assigned_by'
+        )
+
+        task_id = request.GET.get('task_id')
+        if task_id not in (None, ''):
+            queryset = queryset.filter(task_id=task_id)
+
+        action = request.GET.get('action')
+        if action in {
+            TaskAssignmentAuditLog.ACTION_ASSIGNED,
+            TaskAssignmentAuditLog.ACTION_REASSIGNED,
+            TaskAssignmentAuditLog.ACTION_UNASSIGNED,
+        }:
+            queryset = queryset.filter(action=action)
+
+        queryset = queryset.order_by('-created_at')
+        page = paginator(queryset, request)
+        page_queryset = page if page is not None else queryset[:100]
+
+        results = [
+            {
+                'id': item.id,
+                'task_id': item.task_id,
+                'task_inner_id': item.task.inner_id,
+                'action': item.action,
+                'assignee': self._serialize_user(item.assignee),
+                'previous_assignee': self._serialize_user(item.previous_assignee),
+                'assigned_by': self._serialize_user(item.assigned_by),
+                'created_at': item.created_at,
+            }
+            for item in page_queryset
+        ]
+
+        return Response({'results': results, 'count': queryset.count()})
+
+
+class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
+    permission_required = ViewClassPermission(
+        GET=all_permissions.projects_view,
+    )
+    queryset = Project.objects.all()
+
+    @staticmethod
+    def _serialize_user(user):
+        if not user:
+            return None
+        full_name = user.get_full_name().strip()
+        display = full_name or user.username or user.email or f'User {user.id}'
+        return {
+            'id': user.id,
+            'display_name': display,
+            'email': user.email,
+        }
+
+    def get(self, request, *args, **kwargs):
+        project = self.get_object()
+        self.check_object_permissions(request, project)
+
+        queryset = TaskWorkflowAuditLog.objects.filter(project=project).select_related('task', 'actor')
+
+        action = request.GET.get('action')
+        if action in {
+            TaskWorkflowAuditLog.ACTION_SUBMITTED,
+            TaskWorkflowAuditLog.ACTION_SKIPPED,
+            TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED,
+        }:
+            queryset = queryset.filter(action=action)
+
+        actor_id = request.GET.get('actor_id')
+        if actor_id not in (None, ''):
+            try:
+                queryset = queryset.filter(actor_id=int(actor_id))
+            except (TypeError, ValueError):
+                pass
+
+        date_from = request.GET.get('date_from')
+        if date_from:
+            parsed_date_from = parse_date(date_from)
+            if parsed_date_from:
+                queryset = queryset.filter(created_at__date__gte=parsed_date_from)
+
+        date_to = request.GET.get('date_to')
+        if date_to:
+            parsed_date_to = parse_date(date_to)
+            if parsed_date_to:
+                queryset = queryset.filter(created_at__date__lte=parsed_date_to)
+
+        queryset = queryset.order_by('-created_at')
+
+        if request.GET.get('format') == 'csv':
+            response = HttpResponse(content_type='text/csv; charset=utf-8')
+            response['Content-Disposition'] = (
+                f'attachment; filename="project_{project.id}_workflow_audit.csv"'
+            )
+            writer = csv.writer(response)
+            writer.writerow(['task_id', 'action', 'reason', 'actor', 'created_at'])
+
+            for item in queryset:
+                actor_display = ''
+                if item.actor:
+                    actor_display = item.actor.get_full_name().strip() or item.actor.username or item.actor.email or str(item.actor_id)
+
+                writer.writerow(
+                    [
+                        item.task_id,
+                        item.action,
+                        item.reason or '',
+                        actor_display,
+                        item.created_at.isoformat() if item.created_at else '',
+                    ]
+                )
+
+            return response
+
+        page = paginator(queryset, request)
+        page_queryset = page if page is not None else queryset[:100]
+
+        results = [
+            {
+                'id': item.id,
+                'task_id': item.task_id,
+                'task_inner_id': item.task.inner_id,
+                'action': item.action,
+                'reason': item.reason or '',
+                'actor': self._serialize_user(item.actor),
+                'created_at': item.created_at,
+            }
+            for item in page_queryset
+        ]
+
+        members = [
+            {
+                'id': member.id,
+                'display_name': (member.get_full_name().strip() or member.username or member.email or f'User {member.id}'),
+                'email': member.email,
+            }
+            for member in get_assignable_users(project)
+        ]
+
+        return Response({'results': results, 'count': queryset.count(), 'members': members})
+
+
+class ProjectStatisticsAPI(generics.RetrieveAPIView):
+    permission_required = ViewClassPermission(
+        GET=all_permissions.projects_view,
+    )
+    queryset = Project.objects.all()
+
+    @staticmethod
+    def _serialize_user(user):
+        if not user:
+            return None
+        full_name = user.get_full_name().strip()
+        display = full_name or user.username or user.email or f'User {user.id}'
+        return {
+            'id': user.id,
+            'display_name': display,
+            'email': user.email,
+        }
+
+    @staticmethod
+    def _safe_rate(numerator, denominator):
+        if not denominator:
+            return 0.0
+        return round((numerator / denominator) * 100, 2)
+
+    def get(self, request, *args, **kwargs):
+        project = self.get_object()
+        self.check_object_permissions(request, project)
+
+        tasks_qs = Task.objects.filter(project=project)
+        total_tasks = tasks_qs.count()
+        completed_tasks = tasks_qs.filter(is_labeled=True).count()
+        pending_tasks = max(total_tasks - completed_tasks, 0)
+
+        assigned_tasks = TaskAssignment.objects.filter(task__project=project).count()
+        unassigned_tasks = max(total_tasks - assigned_tasks, 0)
+        assignment_coverage = self._safe_rate(assigned_tasks, total_tasks)
+
+        workflow_qs = TaskWorkflowAuditLog.objects.filter(project=project)
+        skipped_count = workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_SKIPPED).count()
+        empty_submitted_count = (
+            workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED)
+            .values('task_id')
+            .distinct()
+            .count()
+        )
+
+        total_workflow_events = skipped_count + empty_submitted_count
+        skip_rate = self._safe_rate(skipped_count, total_workflow_events)
+        empty_rate = self._safe_rate(empty_submitted_count, total_workflow_events)
+
+        top_skip_reasons = list(
+            workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_SKIPPED)
+            .exclude(reason__isnull=True)
+            .exclude(reason__exact='')
+            .values('reason')
+            .annotate(count=Count('id'))
+            .order_by('-count', 'reason')[:10]
+        )
+
+        today = timezone.localdate()
+        date_from = today - timedelta(days=6)
+        annotation_daily_qs = (
+            Annotation.objects.filter(
+                project=project,
+                was_cancelled=False,
+                completed_by_id__isnull=False,
+                created_at__date__gte=date_from,
+                created_at__date__lte=today,
+            )
+            .annotate(day=TruncDate('created_at'))
+            .values('day')
+            .annotate(count=Count('id'))
+            .order_by('day')
+        )
+        daily_map = {item['day']: item['count'] for item in annotation_daily_qs}
+        completion_trend = []
+        for day_offset in range(7):
+            day = date_from + timedelta(days=day_offset)
+            completion_trend.append(
+                {
+                    'date': day.isoformat(),
+                    'count': daily_map.get(day, 0),
+                }
+            )
+
+        today_completed = daily_map.get(today, 0)
+
+        # "completed" in annotator performance should represent non-empty submissions.
+        # Empty submissions are reported separately as "empty_submitted", so excluding
+        # them here avoids double-counting in handled-rate denominators.
+        completed_by_actor = {
+            item['completed_by_id']: item['count']
+            for item in Annotation.objects.filter(
+                project=project,
+                was_cancelled=False,
+                is_empty_submission=False,
+                completed_by_id__isnull=False,
+            )
+            .values('completed_by_id')
+            .annotate(count=Count('id'))
+        }
+        workflow_by_actor = {
+            item['actor_id']: {
+                'skipped': item['skipped'],
+                'empty_submitted': item['empty_submitted'],
+            }
+            for item in workflow_qs.filter(actor_id__isnull=False)
+            .values('actor_id')
+            .annotate(
+                skipped=Count('id', filter=Q(action=TaskWorkflowAuditLog.ACTION_SKIPPED)),
+                empty_submitted=Count(
+                    'task_id',
+                    filter=Q(action=TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED),
+                    distinct=True,
+                ),
+            )
+        }
+
+        actor_ids = set(completed_by_actor.keys()) | set(workflow_by_actor.keys())
+        users_by_id = User.objects.in_bulk(actor_ids)
+
+        annotator_stats = []
+        for actor_id in actor_ids:
+            user = users_by_id.get(actor_id)
+            completed = completed_by_actor.get(actor_id, 0)
+            skipped = workflow_by_actor.get(actor_id, {}).get('skipped', 0)
+            empty_submitted = workflow_by_actor.get(actor_id, {}).get('empty_submitted', 0)
+            handled = completed + skipped + empty_submitted
+            annotator_stats.append(
+                {
+                    'actor': self._serialize_user(user),
+                    'completed': completed,
+                    'skipped': skipped,
+                    'empty_submitted': empty_submitted,
+                    'skip_rate': self._safe_rate(skipped, handled),
+                    'empty_rate': self._safe_rate(empty_submitted, handled),
+                }
+            )
+
+        annotator_stats.sort(
+            key=lambda item: (
+                -item['completed'],
+                item['skip_rate'],
+                item['empty_rate'],
+                item['actor']['display_name'] if item['actor'] else '',
+            )
+        )
+
+        return Response(
+            {
+                'overview': {
+                    'total_tasks': total_tasks,
+                    'completed_tasks': completed_tasks,
+                    'pending_tasks': pending_tasks,
+                    'completion_rate': self._safe_rate(completed_tasks, total_tasks),
+                },
+                'assignment': {
+                    'assigned_tasks': assigned_tasks,
+                    'unassigned_tasks': unassigned_tasks,
+                    'coverage_rate': assignment_coverage,
+                },
+                'workflow': {
+                    'skipped_count': skipped_count,
+                    'empty_submitted_count': empty_submitted_count,
+                    'skip_rate': skip_rate,
+                    'empty_rate': empty_rate,
+                },
+                'activity': {
+                    'today_completed': today_completed,
+                    'completion_trend': completion_trend,
+                },
+                'annotators': annotator_stats,
+                'top_skip_reasons': top_skip_reasons,
+            }
+        )
 
 
 @method_decorator(

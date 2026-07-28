@@ -3,6 +3,7 @@ import { Button, type ButtonProps } from "@humansignal/ui";
 import chroma from "chroma-js";
 import { observer } from "mobx-react";
 import { type FC, forwardRef, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { WithHotkey } from "../../../common/Hotkey/WithHotkey";
 import { CREATE_RELATION_MODE } from "../../../stores/Annotation/LinkingModes";
 import { cn } from "../../../utils/bem";
@@ -99,6 +100,7 @@ export const RegionItem: FC<RegionItemProps> = observer(
 );
 
 const RegionAction: FC<any> = observer(({ region, annotation, editMode, onEditModeChange }) => {
+  const { t } = useTranslation();
   const entityButtons: JSX.Element[] = [];
 
   entityButtons.push(
@@ -157,11 +159,15 @@ const RegionAction: FC<any> = observer(({ region, annotation, editMode, onEditMo
         />
         {region.hideable && (
           <RegionActionButton
-            aria-label={`${region.hidden ? "Show" : "Hide"} selected region`}
+            aria-label={region.hidden
+              ? t("lsf.region_actions.show_selected_region", "Show selected region")
+              : t("lsf.region_actions.hide_selected_region", "Hide selected region")}
             variant="neutral"
             look="string"
             onClick={region.toggleHidden}
-            tooltip={`${region.hidden ? "Show" : "Hide"} selected region`}
+            tooltip={region.hidden
+              ? t("lsf.region_actions.show_selected_region", "Show selected region")
+              : t("lsf.region_actions.hide_selected_region", "Hide selected region")}
           >
             {region.hidden ? <IconEyeClosed /> : <IconEyeOpened />}
           </RegionActionButton>
@@ -169,9 +175,9 @@ const RegionAction: FC<any> = observer(({ region, annotation, editMode, onEditMo
         <RegionActionButton
           variant="negative"
           look="string"
-          aria-label="Delete selected region"
+          aria-label={t("lsf.region_actions.delete_selected_region", "Delete selected region")}
           disabled={region.isReadOnly()}
-          tooltip="Delete selected region"
+          tooltip={t("lsf.region_actions.delete_selected_region", "Delete selected region")}
           onClick={() => annotation.deleteRegion(region)}
         >
           <IconTrash />

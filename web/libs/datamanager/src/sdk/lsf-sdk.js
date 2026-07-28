@@ -142,9 +142,19 @@ export class LSFWrapper {
         "annotations:tabs",
         "predictions:tabs",
       );
+      if (this.project.show_annotation_history) {
+        interfaces.push("next-task");
+      }
+      if (this.project.show_skip_button) {
+        interfaces.push("skip");
+      }
       if (isFF(FF_REGION_VISIBILITY_FROM_URL)) {
         interfaces.push("annotations:copy-link");
       }
+    }
+
+    if (this.project.require_comment_on_skip) {
+      interfaces.push("comments:skip");
     }
 
     if (this.datamanager.hasInterface("instruction")) {
@@ -174,7 +184,7 @@ export class LSFWrapper {
 
     if (!this.shouldLoadNext()) {
       interfaces = interfaces.filter((item) => {
-        return !["topbar:prevnext", "skip"].includes(item);
+        return !["topbar:prevnext"].includes(item);
       });
     }
 
@@ -607,6 +617,20 @@ export class LSFWrapper {
     if (status === 200 || status === 201) {
       this.datamanager.invoke("toast", { message: successMessage, type: "info" });
     } else if (status !== undefined) {
+      if (status === 409) {
+        const detail = result?.response?.detail;
+        const conflictMessage =
+          typeof detail === "string"
+            ? detail
+            : "This task was changed by another annotator. Reload the task and try again.";
+
+        this.datamanager.invoke("toast", {
+          message: conflictMessage,
+          type: "error",
+        });
+        return;
+      }
+
       const requestId = result?.$meta?.headers?.get("x-ls-request-id");
       const supportUrl = requestId ? `${SUPPORT_URL}?${SUPPORT_URL_REQUEST_ID_PARAM}=${requestId}` : SUPPORT_URL;
 
@@ -811,7 +835,7 @@ export class LSFWrapper {
     return response;
   };
 
-  onSkipTask = async (_, { comment } = {}) => {
+  onSkipTask = async (_, { comment, skip_reason } = {}) => {
     const result = await this.submitCurrentAnnotation(
       "skipTask",
       async (taskID, body) => {
@@ -819,7 +843,12 @@ export class LSFWrapper {
         const params = { taskID };
         const options = { body: { ...annotation, was_cancelled: true } };
 
-        if (comment) options.body.comment = comment;
+        const reason = (skip_reason ?? comment)?.trim?.() ?? skip_reason ?? comment;
+
+        if (reason) {
+          options.body.comment = reason;
+          options.body.skip_reason = reason;
+        }
 
         if (id !== undefined) params.annotationID = id;
 
@@ -892,7 +921,7 @@ export class LSFWrapper {
   };
 
   shouldLoadNext = () => {
-    if (!this.labelStream) return false;
+    if (!this.labelStream) return !!this.project?.show_annotation_history;
 
     // validating if URL is from notification, in case of notification it shouldn't load next task
     const urlParam = new URLSearchParams(location.search).get("interaction");
@@ -931,6 +960,18 @@ export class LSFWrapper {
 
   onNextTask = async (nextTaskId, nextAnnotationId) => {
     this.saveDraft();
+
+    // In explorer mode, when no explicit target is provided, navigate
+    // by the currently visible task list order instead of next_task API.
+    if (!isDefined(nextTaskId) && this.datamanager.isExplorer && this.project?.show_annotation_history) {
+      const visibleNextTaskId = this.getNextTaskIdFromVisibleList(this.task?.id);
+
+      if (isDefined(visibleNextTaskId)) {
+        this.loadTask(visibleNextTaskId, undefined, true);
+      }
+      return;
+    }
+
     this.loadTask(nextTaskId, nextAnnotationId, true);
   };
   onPrevTask = async (prevTaskId, prevAnnotationId) => {
@@ -981,8 +1022,17 @@ export class LSFWrapper {
       return result;
     }
 
-    if (!loadNext || this.datamanager.isExplorer) {
+    if (!loadNext || (this.datamanager.isExplorer && !this.project?.show_annotation_history)) {
       await this.loadTask(taskID, currentAnnotation.pk, true);
+    } else if (this.datamanager.isExplorer && this.project?.show_annotation_history) {
+      const visibleNextTaskId = this.getNextTaskIdFromVisibleList(taskID);
+
+      if (isDefined(visibleNextTaskId)) {
+        await this.loadTask(visibleNextTaskId, undefined, true);
+      } else {
+        // No next row in current list: stay on current task.
+        await this.loadTask(taskID, currentAnnotation.pk, true);
+      }
     } else {
       await this.loadTask();
     }
@@ -1122,5 +1172,18 @@ export class LSFWrapper {
 
   get canPreloadTask() {
     return Boolean(this.preload?.interaction);
+  }
+
+  getNextTaskIdFromVisibleList(currentTaskId) {
+    const list = this.datamanager?.store?.taskStore?.list ?? [];
+    const currentId = Number(currentTaskId);
+
+    if (!list.length || !isDefined(currentTaskId) || Number.isNaN(currentId)) return null;
+
+    const currentIndex = list.findIndex((task) => Number(task.id) === currentId);
+    if (currentIndex < 0) return null;
+
+    const nextTask = list[currentIndex + 1];
+    return nextTask ? nextTask.id : null;
   }
 }

@@ -226,6 +226,11 @@ class Project(ProjectMixin, FsmHistoryStateModel):
     enable_empty_annotation = models.BooleanField(
         _('enable empty annotation'), default=True, help_text='Allow annotators to submit empty annotations'
     )
+    require_comment_on_skip = models.BooleanField(
+        _('require comment on skip'),
+        default=True,
+        help_text='Require annotators to provide skip reason when skipping a task',
+    )
 
     reveal_preannotations_interactively = models.BooleanField(
         _('reveal_preannotations_interactively'), default=False, help_text='Reveal pre-annotations interactively'
@@ -356,16 +361,20 @@ class Project(ProjectMixin, FsmHistoryStateModel):
 
     def __init__(self, *args, **kwargs):
         super(Project, self).__init__(*args, **kwargs)
-        self.__original_label_config = self.label_config
-        self.__maximum_annotations = self.maximum_annotations
-        self.__overlap_cohort_percentage = self.overlap_cohort_percentage
-        self.__skip_queue = self.skip_queue
+        deferred = self.get_deferred_fields()
+
+        # Avoid accessing deferred fields in __init__:
+        # reading a deferred attribute here triggers refresh_from_db() which can recurse.
+        self.__original_label_config = self.__dict__.get('label_config')
+        self.__maximum_annotations = self.__dict__.get('maximum_annotations')
+        self.__overlap_cohort_percentage = self.__dict__.get('overlap_cohort_percentage')
+        self.__skip_queue = self.__dict__.get('skip_queue')
 
         # TODO: once bugfix with incorrect data types in List
         # logging.warning('! Please, remove code below after patching of all projects (extract_data_types)')
-        if self.label_config is not None:
+        if 'label_config' not in deferred and self.label_config is not None:
             data_types = extract_data_types(self.label_config)
-            if self.data_types != data_types:
+            if self.__dict__.get('data_types') != data_types:
                 self.data_types = data_types
 
     @property

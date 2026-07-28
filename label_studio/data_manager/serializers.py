@@ -458,6 +458,9 @@ class DataManagerTaskSerializer(TaskSerializer):
     predictions_model_versions = serializers.SerializerMethodField(required=False)
     avg_lead_time = serializers.FloatField(required=False)
     draft_exists = serializers.BooleanField(required=False)
+    assignee = serializers.CharField(required=False)
+    skip_reason = serializers.SerializerMethodField(required=False)
+    has_empty_submission = serializers.BooleanField(required=False)
     updated_by = UpdatedByDMFieldSerializer(required=False, read_only=True)
     state = FSMStateField(read_only=True)  # FSM state - automatically uses annotation if present
 
@@ -512,6 +515,9 @@ class DataManagerTaskSerializer(TaskSerializer):
 
     def get_predictions_results(self, task):
         return self._pretty_results(task, 'predictions_results')
+
+    def get_skip_reason(self, task):
+        return self._pretty_results(task, 'skip_reason', unique=True)
 
     def get_predictions(self, task):
         return PredictionSerializer(task.predictions, many=True, default=[], read_only=True).data

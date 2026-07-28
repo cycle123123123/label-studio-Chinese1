@@ -5,6 +5,9 @@ import { DangerZone } from "./DangerZone";
 import { GeneralSettings } from "./GeneralSettings";
 import { AnnotationSettings } from "./AnnotationSettings";
 import { LabelingSettings } from "./LabelingSettings";
+import { AssignmentSettings } from "./AssignmentSettings";
+import { WorkflowAuditSettings } from "./WorkflowAuditSettings";
+import { StatisticsSettings } from "./StatisticsSettings";
 import { MachineLearningSettings } from "./MachineLearningSettings/MachineLearningSettings";
 import { PredictionsSettings } from "./PredictionsSettings/PredictionsSettings";
 import { StorageSettings } from "./StorageSettings/StorageSettings";
@@ -18,6 +21,9 @@ export const MenuLayout = ({ children, ...routeProps }) => {
       menuItems={[
         GeneralSettings,
         LabelingSettings,
+        AssignmentSettings,
+        WorkflowAuditSettings,
+        StatisticsSettings,
         AnnotationSettings,
         MachineLearningSettings,
         PredictionsSettings,
@@ -35,6 +41,9 @@ export const MenuLayout = ({ children, ...routeProps }) => {
 const pages = {
   AnnotationSettings,
   LabelingSettings,
+  AssignmentSettings,
+  WorkflowAuditSettings,
+  StatisticsSettings,
   MachineLearningSettings,
   PredictionsSettings,
   StorageSettings,

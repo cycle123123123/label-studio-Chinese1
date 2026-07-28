@@ -822,12 +822,26 @@ class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):
 
 class NextTaskSerializer(TaskWithAnnotationsAndPredictionsAndDraftsSerializer):
     unique_lock_id = serializers.SerializerMethodField()
+    assigned_task = serializers.SerializerMethodField()
 
     def get_unique_lock_id(self, task):
         user = self.context['request'].user
         lock = task.locks.filter(user=user).first()
         if lock:
             return lock.unique_id
+
+    def get_assigned_task(self, task):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return False
+
+        if hasattr(task, 'assignment'):
+            return task.assignment.user_id == user.id
+
+        from tasks.models import TaskAssignment
+
+        return TaskAssignment.objects.filter(task=task, user=user).exists()
 
     def get_predictions(self, task):
         predictions = task.get_predictions_for_prelabeling()

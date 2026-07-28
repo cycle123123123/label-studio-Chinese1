@@ -211,7 +211,7 @@ Label Studio includes a variety of templates to help you label your data, or you
 
 Connect your favorite machine learning model using the Label Studio Machine Learning SDK. Follow these steps:
 
-1. Start your own machine learning backend server. See [more detailed instructions](https://github.com/HumanSignal/label-studio-ml-backend).
+1. Start your own machine learning backend server. See [more detailed 找到了：前端把原因写进了 comment，但后端校验的是 skip_reason，所以一定会 400。instructions](https://github.com/HumanSignal/label-studio-ml-backend).
 2. Connect Label Studio to the server on the model page found in project settings.
 
 This lets you:

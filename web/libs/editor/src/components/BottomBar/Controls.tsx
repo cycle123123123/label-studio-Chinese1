@@ -7,9 +7,10 @@
 import { observer } from "mobx-react";
 import type React from "react";
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { Button, ButtonGroup, type ButtonProps } from "@humansignal/ui";
-import { IconBan, IconChevronDown } from "@humansignal/icons";
+import { IconBan, IconChevronDown, IconChevronRight } from "@humansignal/icons";
 import { Dropdown } from "../../common/Dropdown/Dropdown";
 import type { CustomButtonType } from "../../stores/CustomButton";
 import { cn } from "../../utils/bem";
@@ -67,6 +68,7 @@ const ControlButton = observer(({ button, disabled, onClick, variant, look }: Co
 
 export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
   observer(({ store, history, annotation }) => {
+    const { t } = useTranslation();
     const isReview = store.hasInterface("review") || annotation.canBeReviewed;
     const isNotQuickView = store.hasInterface("topbar:prevnext");
     const historySelected = isDefined(store.annotationStore.selectedHistory);
@@ -181,17 +183,32 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
     } else if (annotation.skipped) {
       buttons.push(
         <div className={cn("controls").elem("skipped-info").toClassName()} key="skipped">
-          <IconBan /> Was skipped
+          <IconBan /> {t("lsf.controls.was_skipped", "Was skipped")}
         </div>,
       );
       buttons.push(<UnskipButton key="unskip" disabled={disabled} store={store} />);
     } else {
       if (store.hasInterface("skip")) {
-        const onSkipWithComment = (e: React.MouseEvent, action: () => any) => {
-          handleActionWithComments(e, action, "Please enter a comment before skipping");
-        };
+        buttons.push(<SkipButton key="skip" disabled={disabled} store={store} />);
+      }
 
-        buttons.push(<SkipButton key="skip" disabled={disabled} store={store} onSkipWithComment={onSkipWithComment} />);
+      if (store.hasInterface("next-task")) {
+        buttons.push(
+          <Button
+            key="next-task"
+            aria-label={t("lsf.controls.next_task", "Next task")}
+            look="outlined"
+            disabled={disabled}
+            onClick={async () => {
+              const selected = store.annotationStore?.selected;
+
+              selected?.submissionInProgress();
+              await store.goToNextTask();
+            }}
+          >
+            {t("lsf.controls.next", "Next")} <IconChevronRight />
+          </Button>,
+        );
       }
 
       const isDisabled = disabled || submitDisabled;
@@ -226,21 +243,23 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                 onClickMethod();
               }}
             >
-              {`${isUpdate ? "Update" : "Submit"} and exit`}
+              {`${isUpdate ? t("lsf.controls.update", "Update") : t("lsf.controls.submit", "Submit")} ${t("lsf.controls.and_exit", "and exit")}`}
             </Button>
           </div>
         );
       };
 
       if (userGenerate || (store.explore && !userGenerate && store.hasInterface("submit"))) {
-        const title = submitDisabled ? EMPTY_SUBMIT_TOOLTIP : "Save results: [ Ctrl+Enter ]";
+        const title = submitDisabled
+          ? t("lsf.controls.empty_annotations_denied", EMPTY_SUBMIT_TOOLTIP)
+          : t("lsf.controls.save_results_tooltip_ctrl_enter", "Save results: [ Ctrl+Enter ]");
 
         buttons.push(
           <ButtonTooltip key="submit" title={title}>
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <ButtonGroup>
                 <Button
-                  aria-label="Submit current annotation"
+                  aria-label={t("lsf.controls.submit_current_annotation", "Submit current annotation")}
                   name="submit"
                   className="w-[150px]"
                   disabled={isDisabled}
@@ -253,7 +272,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                     store.submitAnnotation();
                   }}
                 >
-                  Submit
+                  {t("lsf.controls.submit", "Submit")}
                 </Button>
                 {useExitOption ? (
                   <Dropdown.Trigger
@@ -264,7 +283,7 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                       </div>
                     }
                   >
-                    <Button disabled={isDisabled} aria-label="Submit annotation">
+                    <Button disabled={isDisabled} aria-label={t("lsf.controls.submit_annotation", "Submit annotation")}>
                       <IconChevronDown />
                     </Button>
                   </Dropdown.Trigger>
@@ -279,7 +298,12 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
         const noChanges = isFF(FF_REVIEWER_FLOW) && !history.canUndo && !annotation.draftId;
         const isUpdateDisabled = isDisabled || noChanges;
         const button = (
-          <ButtonTooltip key="update" title={noChanges ? "No changes were made" : "Update this task: [ Ctrl+Enter ]"}>
+          <ButtonTooltip
+            key="update"
+            title={noChanges
+              ? t("lsf.controls.no_changes_made", "No changes were made")
+              : t("lsf.controls.update_task_tooltip_ctrl_enter", "Update this task: [ Ctrl+Enter ]")}
+          >
             <ButtonGroup>
               <Button
                 aria-label="submit"
@@ -295,14 +319,14 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
                   store.updateAnnotation();
                 }}
               >
-                {isUpdate ? "Update" : "Submit"}
+                {isUpdate ? t("lsf.controls.update", "Update") : t("lsf.controls.submit", "Submit")}
               </Button>
               {useExitOption ? (
                 <Dropdown.Trigger
                   alignment="top-right"
                   content={<SubmitOption onClickMethod={store.updateAnnotation} isUpdate={isUpdate} />}
                 >
-                  <Button disabled={isUpdateDisabled} aria-label="Update annotation">
+                  <Button disabled={isUpdateDisabled} aria-label={t("lsf.controls.update_annotation", "Update annotation")}>
                     <IconChevronDown />
                   </Button>
                 </Dropdown.Trigger>

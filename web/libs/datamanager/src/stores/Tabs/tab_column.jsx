@@ -49,17 +49,17 @@ const typeShortMap = {
 export const ViewColumnTypeShort = (type) => typeShortMap[type] || "str";
 
 const typeNameMap = {
-  String: "String",
-  Number: "Number",
-  Boolean: "Boolean",
-  Datetime: "Date Time",
-  Image: "Image",
-  Audio: "Audio",
-  AudioPlus: "Audio",
-  Video: "Video",
-  Text: "Text",
-  HyperText: "Hyper Text",
-  TimeSeries: "Time Series",
+  String: "字符串",
+  Number: "数字",
+  Boolean: "布尔",
+  Datetime: "日期时间",
+  Image: "图片",
+  Audio: "音频",
+  AudioPlus: "音频",
+  Video: "视频",
+  Text: "文本",
+  HyperText: "富文本",
+  TimeSeries: "时间序列",
 };
 
 export const ViewColumnTypeName = (type) => typeNameMap[type] || "String";

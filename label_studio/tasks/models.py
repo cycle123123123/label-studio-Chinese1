@@ -566,6 +566,167 @@ pre_bulk_create = Signal()   # providing args 'objs' and 'batch_size'
 post_bulk_create = Signal()   # providing args 'objs' and 'batch_size'
 
 
+class TaskAssignment(models.Model):
+    """
+    Manual task assignment in OSS:
+    one task can be assigned to one user.
+    """
+
+    task = models.OneToOneField(
+        'tasks.Task',
+        on_delete=models.CASCADE,
+        related_name='assignment',
+        help_text='Assigned task',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='task_assignments',
+        help_text='Assigned user',
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_task_assignments',
+        help_text='User who assigned the task',
+    )
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True, help_text='Creation time')
+
+    class Meta:
+        db_table = 'task_assignment'
+        indexes = [
+            models.Index(fields=['user', 'task']),
+            models.Index(fields=['task', 'user']),
+        ]
+
+    def __str__(self):
+        return f'task={self.task_id} user={self.user_id}'
+
+
+class TaskAssignmentAuditLog(models.Model):
+    ACTION_ASSIGNED = 'assigned'
+    ACTION_REASSIGNED = 'reassigned'
+    ACTION_UNASSIGNED = 'unassigned'
+
+    ACTION_CHOICES = [
+        (ACTION_ASSIGNED, 'Assigned'),
+        (ACTION_REASSIGNED, 'Reassigned'),
+        (ACTION_UNASSIGNED, 'Unassigned'),
+    ]
+
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.CASCADE,
+        related_name='task_assignment_audit_logs',
+        help_text='Project of assignment action',
+    )
+    task = models.ForeignKey(
+        'tasks.Task',
+        on_delete=models.CASCADE,
+        related_name='assignment_audit_logs',
+        help_text='Task affected by assignment action',
+    )
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES, help_text='Assignment action type')
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_assignment_audit_as_assignee',
+        help_text='Current assignee after action',
+    )
+    previous_assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_assignment_audit_as_previous_assignee',
+        help_text='Assignee before action',
+    )
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_assignment_audit_as_actor',
+        help_text='User who performed assignment action',
+    )
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True, help_text='Creation time')
+
+    class Meta:
+        db_table = 'task_assignment_audit_log'
+        indexes = [
+            models.Index(fields=['project', '-created_at']),
+            models.Index(fields=['task', '-created_at']),
+            models.Index(fields=['assignee', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.action} task={self.task_id} by={self.assigned_by_id}'
+
+
+class TaskWorkflowAuditLog(models.Model):
+    ACTION_SUBMITTED = 'submitted'
+    ACTION_SKIPPED = 'skipped'
+    ACTION_EMPTY_SUBMITTED = 'empty_submitted'
+
+    ACTION_CHOICES = [
+        (ACTION_SUBMITTED, 'Submitted'),
+        (ACTION_SKIPPED, 'Skipped'),
+        (ACTION_EMPTY_SUBMITTED, 'Empty Submitted'),
+    ]
+
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.CASCADE,
+        related_name='task_workflow_audit_logs',
+        help_text='Project of workflow action',
+    )
+    task = models.ForeignKey(
+        'tasks.Task',
+        on_delete=models.CASCADE,
+        related_name='workflow_audit_logs',
+        help_text='Task affected by workflow action',
+    )
+    annotation = models.ForeignKey(
+        'tasks.Annotation',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_audit_logs',
+        help_text='Annotation associated with workflow action',
+    )
+    action = models.CharField(max_length=32, choices=ACTION_CHOICES, help_text='Workflow action type')
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='task_workflow_audit_as_actor',
+        help_text='User who performed workflow action',
+    )
+    reason = models.TextField(
+        null=True,
+        blank=True,
+        default='',
+        help_text='Optional reason for workflow action, e.g. skip reason',
+    )
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True, help_text='Creation time')
+
+    class Meta:
+        db_table = 'task_workflow_audit_log'
+        indexes = [
+            models.Index(fields=['project', '-created_at']),
+            models.Index(fields=['task', '-created_at']),
+            models.Index(fields=['actor', '-created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.action} task={self.task_id} by={self.actor_id}'
+
+
 class AnnotationQuerySet(models.QuerySet):
     pass
 
@@ -654,6 +815,18 @@ class Annotation(AnnotationMixin, FsmHistoryStateModel):
         help_text='Last user who updated this annotation',
     )
     was_cancelled = models.BooleanField(_('was cancelled'), default=False, help_text='User skipped the task')
+    skip_reason = models.TextField(
+        _('skip reason'),
+        null=True,
+        blank=True,
+        default='',
+        help_text='Reason provided by annotator when skipping task',
+    )
+    is_empty_submission = models.BooleanField(
+        _('is empty submission'),
+        default=False,
+        help_text='True when annotation was submitted without any result regions',
+    )
     ground_truth = models.BooleanField(
         _('ground_truth'),
         default=False,
@@ -738,6 +911,7 @@ class Annotation(AnnotationMixin, FsmHistoryStateModel):
             models.Index(fields=['task', 'ground_truth']),
             models.Index(fields=['task', 'was_cancelled']),
             models.Index(fields=['was_cancelled']),
+            models.Index(fields=['is_empty_submission']),
         ]
 
     def created_ago(self):

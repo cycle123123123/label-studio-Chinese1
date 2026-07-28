@@ -8,8 +8,10 @@ import { GroundTruth } from "../CurrentEntity/GroundTruth";
 import { EditingHistory } from "./HistoryActions";
 import { confirm } from "../../common/Modal/Modal";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 export const Actions = ({ store }) => {
+  const { t } = useTranslation();
   const annotationStore = store.annotationStore;
   const entity = annotationStore.selected;
   const saved = !entity.userGenerate || entity.sentUserGenerate;
@@ -102,7 +104,8 @@ export const Actions = ({ store }) => {
         icon={<IconSettings />}
         variant="neutral"
         look="string"
-        aria-label="Settings"
+        aria-label={t("Settings", "Settings")}
+        tooltip={t("Settings", "Settings")}
         onClick={() => store.toggleSettings()}
         style={{
           height: 36,

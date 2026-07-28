@@ -5,6 +5,7 @@
 import { inject, observer } from "mobx-react";
 import { IconBan } from "@humansignal/icons";
 import { Button, Tooltip } from "@humansignal/ui";
+import { useTranslation } from "react-i18next";
 import { cn } from "../../utils/bem";
 import { isDefined } from "../../utils/utilities";
 
@@ -32,6 +33,7 @@ const controlsInjector = inject(({ store }) => {
 
 export const Controls = controlsInjector(
   observer(({ store, history, annotation }) => {
+    const { t } = useTranslation();
     const isReview = store.hasInterface("review");
 
     const historySelected = isDefined(store.annotationStore.selectedHistory);
@@ -149,13 +151,9 @@ export const Controls = controlsInjector(
               disabled={disabled}
               variant="negative"
               look="outlined"
-              onClick={async (e) => {
-                if (store.hasInterface("comments:skip") ?? true) {
-                  buttonHandler(e, () => store.skipTask({}), "Please enter a comment before skipping");
-                } else {
-                  await store.commentStore.commentFormSubmit();
-                  store.skipTask({});
-                }
+              onClick={async () => {
+                await store.commentStore.commentFormSubmit();
+                store.skipTask({});
               }}
             >
               Skip
@@ -165,14 +163,16 @@ export const Controls = controlsInjector(
       }
 
       if ((userGenerate && !sentUserGenerate) || (store.explore && !userGenerate && store.hasInterface("submit"))) {
-        const title = submitDisabled ? "Empty annotations denied in this project" : "Save results: [ Ctrl+Enter ]";
+        const title = submitDisabled
+          ? t("lsf.controls.empty_annotations_denied", "Empty annotations denied in this project")
+          : t("lsf.controls.save_results_tooltip", "Save results: [ Ctrl+Enter ]");
         // span is to display tooltip for disabled button
 
         buttons.push(
           <ButtonTooltip key="submit" title={title}>
             <div className={cn("controls").elem("tooltip-wrapper").toClassName()}>
               <Button
-                aria-label="Submit current annotation"
+                aria-label={t("lsf.controls.submit_current_annotation", "Submit current annotation")}
                 disabled={disabled || submitDisabled}
                 look="primary"
                 onClick={async () => {
@@ -180,7 +180,7 @@ export const Controls = controlsInjector(
                   store.submitAnnotation();
                 }}
               >
-                Submit
+                {t("lsf.controls.submit", "Submit")}
               </Button>
             </div>
           </ButtonTooltip>,
@@ -190,9 +190,9 @@ export const Controls = controlsInjector(
       if ((userGenerate && sentUserGenerate) || (!userGenerate && store.hasInterface("update"))) {
         const isUpdate = sentUserGenerate || versions.result;
         const button = (
-          <ButtonTooltip key="update" title="Update this task: [ Alt+Enter ]">
+          <ButtonTooltip key="update" title={t("lsf.controls.update_task_tooltip", "Update this task: [ Alt+Enter ]")}>
             <Button
-              aria-label="Update current annotation"
+              aria-label={t("lsf.controls.update_current_annotation", "Update current annotation")}
               disabled={disabled || submitDisabled}
               look="primary"
               onClick={async () => {
@@ -200,7 +200,7 @@ export const Controls = controlsInjector(
                 store.updateAnnotation();
               }}
             >
-              {isUpdate ? "Update" : "Submit"}
+              {isUpdate ? t("lsf.controls.update", "Update") : t("lsf.controls.submit", "Submit")}
             </Button>
           </ButtonTooltip>
         );
