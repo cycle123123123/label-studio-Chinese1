@@ -86,10 +86,15 @@ export const RejectButtonDefinition = {
 type SkipButtonProps = {
   disabled: boolean;
   store: MSTStore;
+  /**
+   * Handler wrapper for skip with required comment,
+   * conditions are checked in wrapper and if all good the `action` is called.
+   **/
+  onSkipWithComment: (event: React.MouseEvent, action: () => any) => void;
 };
 
 export const SkipButton = memo(
-  observer(({ disabled, store }: SkipButtonProps) => {
+  observer(({ disabled, store, onSkipWithComment }: SkipButtonProps) => {
     return (
       <Button
         key="skip"
@@ -97,12 +102,17 @@ export const SkipButton = memo(
         disabled={disabled}
         look="outlined"
         tooltip="Cancel (skip) task [ Ctrl+Space ]"
-        onClick={async () => {
+        onClick={async (e) => {
+          const action = () => store.skipTask({});
           const selected = store.annotationStore?.selected;
 
-          selected?.submissionInProgress();
-          await store.commentStore.commentFormSubmit();
-          store.skipTask({});
+          if (store.hasInterface("comments:skip") ?? true) {
+            onSkipWithComment(e, action);
+          } else {
+            selected?.submissionInProgress();
+            await store.commentStore.commentFormSubmit();
+            store.skipTask({});
+          }
         }}
       >
         Skip

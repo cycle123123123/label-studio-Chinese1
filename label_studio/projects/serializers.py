@@ -31,7 +31,7 @@ from projects.models import Project, ProjectImport, ProjectOnboarding, ProjectRe
 from rest_flex_fields import FlexFieldsModelSerializer
 from rest_framework import serializers
 from rest_framework.serializers import SerializerMethodField
-from tasks.assignment import has_manual_assignment, is_assignment_enforced_for_user
+from tasks.assignment import can_manage_assignments, has_manual_assignment, is_assignment_enforced_for_user
 from tasks.models import Task
 from users.serializers import UserSimpleSerializer
 
@@ -215,7 +215,6 @@ class ProjectSerializer(FlexFieldsModelSerializer):
             'show_instruction',
             'show_skip_button',
             'enable_empty_annotation',
-            'require_comment_on_skip',
             'show_annotation_history',
             'organization',
             'color',
@@ -320,6 +319,7 @@ class ProjectSerializer(FlexFieldsModelSerializer):
         return {
             'label_stream_task_distribution': distribution,
             'project': project.id,
+            'can_manage': bool(user and can_manage_assignments(project, user)),
         }
 
 

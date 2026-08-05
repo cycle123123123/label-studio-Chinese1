@@ -1,6 +1,6 @@
 /* global LSF_VERSION */
 
-import { destroy, detach, flow, getEnv, getParent, getSnapshot, isRoot, types, walk } from "mobx-state-tree";
+import { destroy, detach, flow, getEnv, getParent, getSnapshot, isAlive, isRoot, types, walk } from "mobx-state-tree";
 
 import uniqBy from "lodash/uniqBy";
 import InfoModal from "../components/Infomodal/Infomodal";
@@ -600,6 +600,12 @@ export default types
         .then(() => self.setFlags({ isSubmitting: false }));
     }
 
+    function eventResultsHaveError(results) {
+      const normalizedResults = Array.isArray(results) ? results : [results];
+
+      return normalizedResults.some((result) => result?.$meta?.status >= 400);
+    }
+
     function incrementQueuePosition(number = 1) {
       self.queuePosition = clamp(self.queuePosition + number, 1, self.queueTotal);
     }
@@ -618,17 +624,23 @@ export default types
         entity.sendUserGenerate();
       }
       handleSubmittingFlag(async () => {
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          await self.waitForDraftSubmission();
-          const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, { event });
-          if (allowedToSave && allowedToSave.some((x) => x === false)) return;
+        try {
+          if (isFF(FF_CUSTOM_SCRIPT)) {
+            await self.waitForDraftSubmission();
+            const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, { event });
+            if (allowedToSave && allowedToSave.some((x) => x === false)) return;
 
-          entity.sendUserGenerate();
-        }
-        await getEnv(self).events.invoke(event, self, entity);
-        self.incrementQueuePosition();
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          entity.dropDraft();
+            entity.sendUserGenerate();
+          }
+          const results = await getEnv(self).events.invoke(event, self, entity);
+          if (eventResultsHaveError(results)) return;
+
+          self.incrementQueuePosition();
+          if (isFF(FF_CUSTOM_SCRIPT)) {
+            entity.dropDraft();
+          }
+        } finally {
+          if (entity && isAlive(entity)) entity.submissionFinished();
         }
       });
       if (!isFF(FF_CUSTOM_SCRIPT)) {
@@ -646,17 +658,23 @@ export default types
       if (!entity.validate()) return;
 
       handleSubmittingFlag(async () => {
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, {
-            event: "updateAnnotation",
-          });
-          if (allowedToSave && allowedToSave.some((x) => x === false)) return;
-        }
-        await getEnv(self).events.invoke("updateAnnotation", self, entity, extraData);
-        self.incrementQueuePosition();
-        if (isFF(FF_CUSTOM_SCRIPT)) {
-          entity.dropDraft();
-          !entity.sentUserGenerate && entity.sendUserGenerate();
+        try {
+          if (isFF(FF_CUSTOM_SCRIPT)) {
+            const allowedToSave = await getEnv(self).events.invoke("beforeSaveAnnotation", self, entity, {
+              event: "updateAnnotation",
+            });
+            if (allowedToSave && allowedToSave.some((x) => x === false)) return;
+          }
+          const results = await getEnv(self).events.invoke("updateAnnotation", self, entity, extraData);
+          if (eventResultsHaveError(results)) return;
+
+          self.incrementQueuePosition();
+          if (isFF(FF_CUSTOM_SCRIPT)) {
+            entity.dropDraft();
+            !entity.sentUserGenerate && entity.sendUserGenerate();
+          }
+        } finally {
+          if (entity && isAlive(entity)) entity.submissionFinished();
         }
       });
       if (!isFF(FF_CUSTOM_SCRIPT)) {
@@ -668,35 +686,19 @@ export default types
     function skipTask(extraData = {}) {
       if (self.isSubmitting) return;
 
-      let payload = extraData ?? {};
+      const entity = self.annotationStore.selected;
 
-      if (self.hasInterface("comments:skip")) {
-        const currentReason = payload.skip_reason ?? payload.comment;
-        const normalizedReason = typeof currentReason === "string" ? currentReason.trim() : "";
+      entity?.submissionInProgress();
+      handleSubmittingFlag(async () => {
+        try {
+          const results = await getEnv(self).events.invoke("skipTask", self, extraData);
+          if (eventResultsHaveError(results)) return results;
 
-        let reason = normalizedReason;
-
-        if (!reason) {
-          const input = window.prompt("Please enter a skip reason");
-          if (input === null) return;
-          reason = input.trim();
+          self.incrementQueuePosition();
+          return results;
+        } finally {
+          if (entity && isAlive(entity)) entity.submissionFinished();
         }
-
-        if (!reason) {
-          window.alert("Skip reason is required");
-          return;
-        }
-
-        payload = {
-          ...payload,
-          comment: reason,
-          skip_reason: reason,
-        };
-      }
-
-      handleSubmittingFlag(() => {
-        getEnv(self).events.invoke("skipTask", self, payload);
-        self.incrementQueuePosition();
       }, "Error during skip, try again");
     }
 

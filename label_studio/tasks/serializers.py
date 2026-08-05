@@ -738,7 +738,7 @@ class AnnotationDraftSerializer(ModelSerializer):
     """
 
     state = FSMStateField(read_only=True)  # FSM state - automatically uses annotation if present
-    user = serializers.CharField(default=serializers.CurrentUserDefault())
+    user = serializers.CharField(read_only=True)
     created_username = serializers.SerializerMethodField(default='', read_only=True, help_text='User name string')
     created_ago = serializers.CharField(default='', read_only=True, help_text='Delta time from creation time')
 
@@ -768,6 +768,7 @@ class AnnotationDraftSerializer(ModelSerializer):
     class Meta:
         model = AnnotationDraft
         fields = '__all__'
+        read_only_fields = ('task', 'annotation', 'user')
 
 
 class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):

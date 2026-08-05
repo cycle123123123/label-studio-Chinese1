@@ -22,9 +22,9 @@ from django.db import IntegrityError
 from django.db.models import Count, F, Q
 from django.db.models.functions import TruncDate
 from django.http import Http404, HttpResponse
-from django.utils.decorators import method_decorator
-from django.utils.dateparse import parse_date
 from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.utils.decorators import method_decorator
 from django_filters import CharFilter, FilterSet
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
@@ -52,6 +52,7 @@ from rest_framework.exceptions import ValidationError as RestValidationError
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
+from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import exception_handler
@@ -76,6 +77,19 @@ from webhooks.utils import api_webhook, api_webhook_for_delete, emit_webhooks_fo
 from label_studio.core.utils.common import load_func
 
 logger = logging.getLogger(__name__)
+
+
+class CSVRenderer(BaseRenderer):
+    media_type = 'text/csv'
+    format = 'csv'
+    charset = 'utf-8'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if data is None:
+            return b''
+        if isinstance(data, bytes):
+            return data
+        return str(data).encode(self.charset)
 
 ProjectImportPermission = load_func(settings.PROJECT_IMPORT_PERMISSION)
 
@@ -428,6 +442,9 @@ class ProjectNextTaskAPI(generics.RetrieveAPIView):
     serializer_class = TaskWithAnnotationsAndPredictionsAndDraftsSerializer
     queryset = Project.objects.all()
 
+    def get_queryset(self):
+        return Project.objects.for_user(self.request.user)
+
     def get(self, request, *args, **kwargs):
         project = self.get_object()
         dm_queue = filters_ordering_selected_items_exist(request.data)
@@ -452,6 +469,9 @@ class ProjectNextTaskAPI(generics.RetrieveAPIView):
 class LabelStreamHistoryAPI(generics.RetrieveAPIView):
     permission_required = all_permissions.tasks_view
     queryset = Project.objects.all()
+
+    def get_queryset(self):
+        return Project.objects.for_user(self.request.user)
 
     def get(self, request, *args, **kwargs):
         project = self.get_object()
@@ -707,10 +727,21 @@ class ProjectTaskListAPI(GetParentObjectMixin, generics.ListCreateAPIView, gener
         else:
             return TaskSerializer
 
+    def _get_parent_object(self):
+        project = generics.get_object_or_404(
+            Project.objects.for_user(self.request.user), pk=self.kwargs.get(self.lookup_url_kwarg or self.lookup_field, 0)
+        )
+        self.check_object_permissions(self.request, project)
+        return project
+
     def filter_queryset(self, queryset):
-        project = generics.get_object_or_404(Project.objects.for_user(self.request.user), pk=self.kwargs.get('pk', 0))
+        project = self.parent_object
         # ordering is deprecated here
         tasks = Task.objects.filter(project=project).order_by('-updated_at')
+        if self.request.method == 'GET':
+            from tasks.assignment import filter_tasks_for_user_assignments
+
+            tasks, _ = filter_tasks_for_user_assignments(tasks, project, self.request.user)
         page = paginator(tasks, self.request)
         if page:
             return page
@@ -860,7 +891,12 @@ class ProjectModelVersions(generics.RetrieveAPIView):
         return Response(data=count)
 
 
-class ProjectAssignmentsAPI(generics.RetrieveAPIView):
+class ProjectOrganizationScopedMixin:
+    def get_queryset(self):
+        return Project.objects.for_user(self.request.user)
+
+
+class ProjectAssignmentsAPI(ProjectOrganizationScopedMixin, generics.RetrieveAPIView):
     permission_required = ViewClassPermission(
         GET=all_permissions.projects_view,
         POST=all_permissions.projects_change,
@@ -882,16 +918,24 @@ class ProjectAssignmentsAPI(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         project = self.get_object()
         self.check_object_permissions(request, project)
+        if not can_manage_assignments(project, request.user):
+            raise PermissionDenied('Only project owner can view task assignments')
 
         queryset = TaskAssignment.objects.filter(task__project=project).select_related('task', 'user', 'assigned_by')
 
         assignee = request.GET.get('assignee')
         if assignee not in (None, ''):
-            queryset = queryset.filter(user_id=assignee)
+            try:
+                queryset = queryset.filter(user_id=int(assignee))
+            except (TypeError, ValueError) as exc:
+                raise RestValidationError({'assignee': 'Invalid assignee value'}) from exc
 
         task_id = request.GET.get('task_id')
         if task_id not in (None, ''):
-            queryset = queryset.filter(task_id=task_id)
+            try:
+                queryset = queryset.filter(task_id=int(task_id))
+            except (TypeError, ValueError) as exc:
+                raise RestValidationError({'task_id': 'Invalid task ID'}) from exc
 
         queryset = queryset.order_by('-created_at')
         page = paginator(queryset, request)
@@ -968,7 +1012,7 @@ class ProjectAssignmentsAPI(generics.RetrieveAPIView):
         return Response({'processed_items': stats['changed'], 'detail': detail})
 
 
-class ProjectAssignmentAuditLogAPI(generics.RetrieveAPIView):
+class ProjectAssignmentAuditLogAPI(ProjectOrganizationScopedMixin, generics.RetrieveAPIView):
     permission_required = ViewClassPermission(
         GET=all_permissions.projects_view,
     )
@@ -989,6 +1033,8 @@ class ProjectAssignmentAuditLogAPI(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         project = self.get_object()
         self.check_object_permissions(request, project)
+        if not can_manage_assignments(project, request.user):
+            raise PermissionDenied('Only project owner can view assignment audit logs')
 
         queryset = TaskAssignmentAuditLog.objects.filter(project=project).select_related(
             'task', 'assignee', 'previous_assignee', 'assigned_by'
@@ -1027,11 +1073,12 @@ class ProjectAssignmentAuditLogAPI(generics.RetrieveAPIView):
         return Response({'results': results, 'count': queryset.count()})
 
 
-class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
+class ProjectWorkflowAuditLogAPI(ProjectOrganizationScopedMixin, generics.RetrieveAPIView):
     permission_required = ViewClassPermission(
         GET=all_permissions.projects_view,
     )
     queryset = Project.objects.all()
+    renderer_classes = [JSONRenderer, CSVRenderer]
 
     @staticmethod
     def _serialize_user(user):
@@ -1048,6 +1095,8 @@ class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         project = self.get_object()
         self.check_object_permissions(request, project)
+        if not can_manage_assignments(project, request.user):
+            raise PermissionDenied('Only project owner can view workflow audit logs')
 
         queryset = TaskWorkflowAuditLog.objects.filter(project=project).select_related('task', 'actor')
 
@@ -1055,7 +1104,6 @@ class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
         if action in {
             TaskWorkflowAuditLog.ACTION_SUBMITTED,
             TaskWorkflowAuditLog.ACTION_SKIPPED,
-            TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED,
         }:
             queryset = queryset.filter(action=action)
 
@@ -1086,7 +1134,7 @@ class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
                 f'attachment; filename="project_{project.id}_workflow_audit.csv"'
             )
             writer = csv.writer(response)
-            writer.writerow(['task_id', 'action', 'reason', 'actor', 'created_at'])
+            writer.writerow(['task_id', 'action', 'actor', 'created_at'])
 
             for item in queryset:
                 actor_display = ''
@@ -1097,7 +1145,6 @@ class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
                     [
                         item.task_id,
                         item.action,
-                        item.reason or '',
                         actor_display,
                         item.created_at.isoformat() if item.created_at else '',
                     ]
@@ -1114,7 +1161,6 @@ class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
                 'task_id': item.task_id,
                 'task_inner_id': item.task.inner_id,
                 'action': item.action,
-                'reason': item.reason or '',
                 'actor': self._serialize_user(item.actor),
                 'created_at': item.created_at,
             }
@@ -1133,7 +1179,7 @@ class ProjectWorkflowAuditLogAPI(generics.RetrieveAPIView):
         return Response({'results': results, 'count': queryset.count(), 'members': members})
 
 
-class ProjectStatisticsAPI(generics.RetrieveAPIView):
+class ProjectStatisticsAPI(ProjectOrganizationScopedMixin, generics.RetrieveAPIView):
     permission_required = ViewClassPermission(
         GET=all_permissions.projects_view,
     )
@@ -1160,6 +1206,8 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
     def get(self, request, *args, **kwargs):
         project = self.get_object()
         self.check_object_permissions(request, project)
+        if not can_manage_assignments(project, request.user):
+            raise PermissionDenied('Only project owner can view project statistics')
 
         tasks_qs = Task.objects.filter(project=project)
         total_tasks = tasks_qs.count()
@@ -1171,26 +1219,11 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
         assignment_coverage = self._safe_rate(assigned_tasks, total_tasks)
 
         workflow_qs = TaskWorkflowAuditLog.objects.filter(project=project)
+        submitted_count = workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_SUBMITTED).count()
         skipped_count = workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_SKIPPED).count()
-        empty_submitted_count = (
-            workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED)
-            .values('task_id')
-            .distinct()
-            .count()
-        )
 
-        total_workflow_events = skipped_count + empty_submitted_count
+        total_workflow_events = submitted_count + skipped_count
         skip_rate = self._safe_rate(skipped_count, total_workflow_events)
-        empty_rate = self._safe_rate(empty_submitted_count, total_workflow_events)
-
-        top_skip_reasons = list(
-            workflow_qs.filter(action=TaskWorkflowAuditLog.ACTION_SKIPPED)
-            .exclude(reason__isnull=True)
-            .exclude(reason__exact='')
-            .values('reason')
-            .annotate(count=Count('id'))
-            .order_by('-count', 'reason')[:10]
-        )
 
         today = timezone.localdate()
         date_from = today - timedelta(days=6)
@@ -1220,15 +1253,11 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
 
         today_completed = daily_map.get(today, 0)
 
-        # "completed" in annotator performance should represent non-empty submissions.
-        # Empty submissions are reported separately as "empty_submitted", so excluding
-        # them here avoids double-counting in handled-rate denominators.
         completed_by_actor = {
             item['completed_by_id']: item['count']
             for item in Annotation.objects.filter(
                 project=project,
                 was_cancelled=False,
-                is_empty_submission=False,
                 completed_by_id__isnull=False,
             )
             .values('completed_by_id')
@@ -1237,17 +1266,11 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
         workflow_by_actor = {
             item['actor_id']: {
                 'skipped': item['skipped'],
-                'empty_submitted': item['empty_submitted'],
             }
             for item in workflow_qs.filter(actor_id__isnull=False)
             .values('actor_id')
             .annotate(
                 skipped=Count('id', filter=Q(action=TaskWorkflowAuditLog.ACTION_SKIPPED)),
-                empty_submitted=Count(
-                    'task_id',
-                    filter=Q(action=TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED),
-                    distinct=True,
-                ),
             )
         }
 
@@ -1259,16 +1282,13 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
             user = users_by_id.get(actor_id)
             completed = completed_by_actor.get(actor_id, 0)
             skipped = workflow_by_actor.get(actor_id, {}).get('skipped', 0)
-            empty_submitted = workflow_by_actor.get(actor_id, {}).get('empty_submitted', 0)
-            handled = completed + skipped + empty_submitted
+            handled = completed + skipped
             annotator_stats.append(
                 {
                     'actor': self._serialize_user(user),
                     'completed': completed,
                     'skipped': skipped,
-                    'empty_submitted': empty_submitted,
                     'skip_rate': self._safe_rate(skipped, handled),
-                    'empty_rate': self._safe_rate(empty_submitted, handled),
                 }
             )
 
@@ -1276,7 +1296,6 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
             key=lambda item: (
                 -item['completed'],
                 item['skip_rate'],
-                item['empty_rate'],
                 item['actor']['display_name'] if item['actor'] else '',
             )
         )
@@ -1295,17 +1314,15 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
                     'coverage_rate': assignment_coverage,
                 },
                 'workflow': {
+                    'submitted_count': submitted_count,
                     'skipped_count': skipped_count,
-                    'empty_submitted_count': empty_submitted_count,
                     'skip_rate': skip_rate,
-                    'empty_rate': empty_rate,
                 },
                 'activity': {
                     'today_completed': today_completed,
                     'completion_trend': completion_trend,
                 },
                 'annotators': annotator_stats,
-                'top_skip_reasons': top_skip_reasons,
             }
         )
 
@@ -1332,6 +1349,9 @@ class ProjectStatisticsAPI(generics.RetrieveAPIView):
 class ProjectAnnotatorsAPI(generics.RetrieveAPIView):
     permission_required = all_permissions.projects_view
     queryset = Project.objects.all()
+
+    def get_queryset(self):
+        return Project.objects.for_user(self.request.user)
 
     def get(self, request, *args, **kwargs):
         project = self.get_object()

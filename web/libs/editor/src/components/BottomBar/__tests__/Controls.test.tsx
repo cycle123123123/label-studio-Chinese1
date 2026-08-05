@@ -35,6 +35,7 @@ const mockStore = {
     enableTooltips: true,
   },
   skipTask: jest.fn(),
+  goToNextTask: jest.fn(),
   commentStore: {
     currentComment: {
       a3r0fa: "It's working",
@@ -46,6 +47,7 @@ const mockStore = {
   annotationStore: {
     selected: {
       submissionInProgress: jest.fn(),
+      submissionFinished: jest.fn(),
       history: {
         canUndo: false,
       },
@@ -105,6 +107,7 @@ describe("Controls", () => {
   });
 
   test("When skip button is clicked, if there is no currentComment and annotators doesn't need to leave a comment on skip, it must submit", async () => {
+    mockStore.annotationStore.selected.submissionInProgress.mockClear();
     mockStore.hasInterface = (a: string) => a === "skip";
 
     const { getByLabelText } = render(
@@ -118,5 +121,23 @@ describe("Controls", () => {
 
     await expect(mockStore.commentStore.commentFormSubmit).toHaveBeenCalled();
     expect(mockStore.skipTask).toHaveBeenCalled();
+    expect(mockStore.annotationStore.selected.submissionInProgress).toHaveBeenCalled();
+  });
+
+  test("When next button is clicked, it preserves the draft without marking the annotation as submitted", () => {
+    mockStore.goToNextTask.mockClear();
+    mockStore.annotationStore.selected.submissionInProgress.mockClear();
+    mockStore.hasInterface = (interfaceName: string) => interfaceName === "next-task";
+
+    const { getByLabelText } = render(
+      <Provider store={mockStore}>
+        <Controls history={mockHistory} annotation={mockAnnotation} />
+      </Provider>,
+    );
+
+    fireEvent.click(getByLabelText("Next task"));
+
+    expect(mockStore.goToNextTask).toHaveBeenCalledTimes(1);
+    expect(mockStore.annotationStore.selected.submissionInProgress).not.toHaveBeenCalled();
   });
 });

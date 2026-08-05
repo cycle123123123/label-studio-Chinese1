@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next"; // 1. 在这里导入 hook
 import { SidebarMenu } from "../../components/SidebarMenu/SidebarMenu";
+import { useProject } from "../../providers/ProjectProvider";
 import { WebhookPage } from "../WebhookPage/WebhookPage";
 import { DangerZone } from "./DangerZone";
 import { GeneralSettings } from "./GeneralSettings";
@@ -14,6 +15,8 @@ import { StorageSettings } from "./StorageSettings/StorageSettings";
 import "./settings.scss";
 
 export const MenuLayout = ({ children, ...routeProps }) => {
+  const { project } = useProject();
+  const canManageAssignments = Boolean(project?.assignment_settings?.can_manage);
   const { t } = useTranslation(); // 2. 在这里安全地获取 t 函数
 
   return (
@@ -21,9 +24,9 @@ export const MenuLayout = ({ children, ...routeProps }) => {
       menuItems={[
         GeneralSettings,
         LabelingSettings,
-        AssignmentSettings,
-        WorkflowAuditSettings,
-        StatisticsSettings,
+        canManageAssignments && AssignmentSettings,
+        canManageAssignments && WorkflowAuditSettings,
+        canManageAssignments && StatisticsSettings,
         AnnotationSettings,
         MachineLearningSettings,
         PredictionsSettings,

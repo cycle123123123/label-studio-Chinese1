@@ -23,6 +23,13 @@ declare type APIProject = {
   /** Allow annotators to submit empty annotations */
   enable_empty_annotation?: boolean;
 
+
+  assignment_settings?: {
+    label_stream_task_distribution: "assigned_only" | "auto_distribution";
+    project: number;
+    can_manage: boolean;
+  };
+
   /** Show annotation history to annotator */
   show_annotation_history?: boolean;
   organization?: number | null;

@@ -655,39 +655,6 @@ def annotate_assignee(queryset):
     )
 
 
-def annotate_skip_reason(queryset):
-    if settings.DJANGO_DB == settings.DJANGO_DB_SQLITE:
-        return queryset.annotate(
-            skip_reason=Coalesce(
-                GroupConcat(
-                    'annotations__skip_reason',
-                    filter=Q(annotations__was_cancelled=True) & ~Q(annotations__skip_reason=''),
-                ),
-                Value(''),
-                output_field=TextField(),
-            )
-        )
-
-    return queryset.annotate(
-        skip_reason=ArrayAgg(
-            'annotations__skip_reason',
-            filter=Q(annotations__was_cancelled=True) & ~Q(annotations__skip_reason=''),
-            distinct=True,
-            default=Value([]),
-        )
-    )
-
-
-def annotate_has_empty_submission(queryset):
-    from tasks.models import Annotation
-
-    return queryset.annotate(
-        has_empty_submission=Exists(
-            Annotation.objects.filter(task_id=OuterRef('pk'), is_empty_submission=True)
-        )
-    )
-
-
 def annotate_predictions_score(queryset):
     first_task = queryset.first()
     if not first_task:
@@ -781,8 +748,6 @@ settings.DATA_MANAGER_ANNOTATIONS_MAP = {
     'predictions_score': annotate_predictions_score,
     'annotators': annotate_annotators,
     'assignee': annotate_assignee,
-    'skip_reason': annotate_skip_reason,
-    'has_empty_submission': annotate_has_empty_submission,
     'annotations_ids': annotate_annotations_ids,
     'file_upload': file_upload,
     'draft_exists': annotate_draft_exists,

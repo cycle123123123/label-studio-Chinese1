@@ -353,10 +353,12 @@ class TaskListAPI(generics.ListCreateAPIView):
         view_pk = int_from_request(request.GET, 'view', 0) or int_from_request(request.data, 'view', 0)
         project_pk = int_from_request(request.GET, 'project', 0) or int_from_request(request.data, 'project', 0)
         if project_pk:
-            project = generics.get_object_or_404(Project, pk=project_pk)
+            project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=project_pk)
             self.check_object_permissions(request, project)
         elif view_pk:
-            view = generics.get_object_or_404(View, pk=view_pk)
+            view = generics.get_object_or_404(
+                View.objects.filter(project__organization=request.user.active_organization), pk=view_pk
+            )
             project = view.project
             self.check_object_permissions(request, project)
         else:
@@ -479,7 +481,7 @@ class ProjectColumnsAPI(APIView):
 
     def get(self, request):
         pk = int_from_request(request.GET, 'project', 1)
-        project = generics.get_object_or_404(Project, pk=pk)
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=pk)
         self.check_object_permissions(request, project)
         GET_ALL_COLUMNS = load_func(settings.DATA_MANAGER_GET_ALL_COLUMNS)
         data = GET_ALL_COLUMNS(project, request.user)
@@ -502,7 +504,7 @@ class ProjectStateAPI(APIView):
 
     def get(self, request):
         pk = int_from_request(request.GET, 'project', 1)  # replace 1 to None, it's for debug only
-        project = generics.get_object_or_404(Project, pk=pk)
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=pk)
         self.check_object_permissions(request, project)
         data = ProjectSerializer(project).data
 
@@ -675,13 +677,13 @@ class ProjectActionsAPI(APIView):
 
     def get(self, request):
         pk = int_from_request(request.GET, 'project', 0)
-        project = generics.get_object_or_404(Project, pk=pk)
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=pk)
         self.check_object_permissions(request, project)
         return Response(get_all_actions(request.user, project))
 
     def post(self, request):
         pk = int_from_request(request.GET, 'project', 0)
-        project = generics.get_object_or_404(Project, pk=pk)
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=pk)
         self.check_object_permissions(request, project)
 
         # keep ordering only when needed, otherwise drop to avoid expensive sorts/annotations
@@ -745,7 +747,7 @@ class ProjectActionsFormAPI(APIView):
 
     def get(self, request, action_id):
         pk = int_from_request(request.GET, 'project', 0)
-        project = generics.get_object_or_404(Project, pk=pk)
+        project = generics.get_object_or_404(Project.objects.for_user(request.user), pk=pk)
         self.check_object_permissions(request, project)
 
         form = get_action_form(action_id, project, request.user)

@@ -226,12 +226,6 @@ class Project(ProjectMixin, FsmHistoryStateModel):
     enable_empty_annotation = models.BooleanField(
         _('enable empty annotation'), default=True, help_text='Allow annotators to submit empty annotations'
     )
-    require_comment_on_skip = models.BooleanField(
-        _('require comment on skip'),
-        default=True,
-        help_text='Require annotators to provide skip reason when skipping a task',
-    )
-
     reveal_preannotations_interactively = models.BooleanField(
         _('reveal_preannotations_interactively'), default=False, help_text='Reveal pre-annotations interactively'
     )

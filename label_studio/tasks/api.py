@@ -21,11 +21,10 @@ from drf_spectacular.utils import OpenApiExample, OpenApiParameter, OpenApiRespo
 from projects.functions.stream_history import fill_history_annotation
 from projects.models import Project
 from rest_framework import generics, viewsets
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from tasks.exceptions import AnnotationDuplicateError, TaskSubmissionConflictError
-from tasks.assignment import can_user_access_task, is_assignment_enforced_for_user
+from tasks.assignment import can_user_access_task, filter_task_related_queryset_for_user
 from tasks.models import Annotation, AnnotationDraft, Prediction, Task, TaskWorkflowAuditLog
 from tasks.openapi_schema import (
     annotation_request_schema,
@@ -51,6 +50,32 @@ from webhooks.utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def get_workflow_audit_action(annotation):
+    if annotation.was_cancelled:
+        return TaskWorkflowAuditLog.ACTION_SKIPPED
+    return TaskWorkflowAuditLog.ACTION_SUBMITTED
+
+
+def create_workflow_audit(task, annotation, actor):
+    action = get_workflow_audit_action(annotation)
+
+    return TaskWorkflowAuditLog.objects.create(
+        project_id=task.project_id,
+        task_id=task.id,
+        annotation_id=annotation.id,
+        action=action,
+        actor=actor,
+    )
+
+
+class AssignmentScopedTaskObjectMixin:
+    def get_object(self):
+        obj = super().get_object()
+        if not can_user_access_task(obj.task, self.request.user):
+            raise PermissionDenied('You have no access to this task')
+        return obj
 
 
 # TODO: fix after switch to api/tasks from api/dm/tasks
@@ -446,7 +471,7 @@ class TaskAPI(generics.RetrieveUpdateDestroyAPIView):
         },
     ),
 )
-class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
+class AnnotationAPI(AssignmentScopedTaskObjectMixin, generics.RetrieveUpdateDestroyAPIView):
     parser_classes = (JSONParser, FormParser, MultiPartParser)
     permission_required = ViewClassPermission(
         GET=all_permissions.annotations_view,
@@ -458,26 +483,45 @@ class AnnotationAPI(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = AnnotationSerializer
     queryset = Annotation.objects.all()
 
+    def get_queryset(self):
+        return filter_task_related_queryset_for_user(
+            Annotation.objects.all(), self.request.user, project_lookup='project', task_lookup='task'
+        )
+
     def perform_destroy(self, annotation):
         annotation.delete()
 
     def update(self, request, *args, **kwargs):
-        # save user history with annotator_id, time & annotation result
-        annotation = self.get_object()
-        # use updated instead of save to avoid duplicated signals
-        Annotation.objects.filter(id=annotation.id).update(updated_by=request.user)
+        partial = kwargs.pop('partial', False)
 
-        task = annotation.task
-        if self.request.data.get('ground_truth'):
-            task.ensure_unique_groundtruth(annotation_id=annotation.id)
-        task.update_is_labeled()
-        task.save()  # refresh task metrics
+        with transaction.atomic():
+            annotation = self.get_object()
+            task = annotation.task
+            if not can_user_access_task(task, request.user):
+                raise PermissionDenied('You have no access to this task')
 
-        result = super(AnnotationAPI, self).update(request, *args, **kwargs)
+            previous_workflow_action = get_workflow_audit_action(annotation)
+            serializer = self.get_serializer(annotation, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
 
-        task.update_is_labeled()
-        task.save(update_fields=['updated_at'])  # refresh task metrics
-        return result
+            was_cancelled = bool(serializer.validated_data.get('was_cancelled', annotation.was_cancelled))
+
+            if request.data.get('ground_truth'):
+                task.ensure_unique_groundtruth(annotation_id=annotation.id)
+
+            # Use updated instead of save to avoid duplicated signals.
+            Annotation.objects.filter(id=annotation.id).update(updated_by=request.user)
+            annotation = serializer.save(
+                updated_by=request.user,
+                was_cancelled=was_cancelled,
+            )
+
+            task.update_is_labeled()
+            task.save()  # refresh task metrics
+            if get_workflow_audit_action(annotation) != previous_workflow_action:
+                create_workflow_audit(task, annotation, request.user)
+
+        return Response(serializer.data)
 
     def get(self, request, *args, **kwargs):
         return super(AnnotationAPI, self).get(request, *args, **kwargs)
@@ -599,145 +643,63 @@ class AnnotationsListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
         except AnnotationDraft.DoesNotExist:
             pass
 
-    def validate_submission_conflict(self, task, user, serializer):
-        request_unique_id = serializer.validated_data.get('unique_id') or self.request.data.get('unique_id')
-        active_lock = task.locks.filter(user=user, expire_at__gt=timezone.now()).first()
-        assignment_enforced = is_assignment_enforced_for_user(task.project, user)
-
-        if request_unique_id:
-            request_unique_id = str(request_unique_id)
-
-            if active_lock is None:
-                if Annotation.objects.filter(unique_id=request_unique_id).exists():
-                    raise AnnotationDuplicateError()
-                raise TaskSubmissionConflictError('Your task lock has expired. Reload the task and submit again.')
-
-            if str(active_lock.unique_id) != request_unique_id:
-                raise TaskSubmissionConflictError('Your task lock is outdated. Reload the task and submit again.')
-
-        # Conflict 1: another annotator currently holds an active lock.
-        # In manual-assignment mode for non-privileged users we don't rely on TaskLock,
-        # because assignment itself already serializes ownership and stale locks are common.
-        if not assignment_enforced and task.num_locks_user(user) > 0:
-            raise TaskSubmissionConflictError('This task is currently occupied by another annotator.')
-
-        # Conflict 2: non-cancelled annotations already reached overlap threshold.
-        # We intentionally ignore cancelled (skipped) annotations here, because
-        # skip_queue policies may keep those records for routing/audit, but they
-        # should not always block a fresh submission in OSS manual-assignment flow.
-        effective_annotations = task.annotations.exclude(Q(was_cancelled=True) | Q(ground_truth=True))
-
-        if effective_annotations.count() >= task.overlap:
-            if effective_annotations.exclude(completed_by=user).exists():
-                raise TaskSubmissionConflictError('This task has already been submitted by another annotator.')
-            raise TaskSubmissionConflictError('This task has already been submitted.')
-
     def perform_create(self, ser):
         task = self.parent_object
-        if not can_user_access_task(task, self.request.user):
-            raise PermissionDenied('You have no access to this task')
-        # annotator has write access only to annotations and it can't be checked it after serializer.save()
         user = self.request.user
+        if not can_user_access_task(task, user):
+            raise PermissionDenied('You have no access to this task')
 
-        self.validate_submission_conflict(task, user, ser)
+        with transaction.atomic():
+            # Keep backward compatibility with the legacy query parameter, but
+            # validate the final effective cancellation value.
+            result = ser.validated_data.get('result')
+            was_cancelled = bool(ser.validated_data.get('was_cancelled', False))
+            if 'was_cancelled' in self.request.GET:
+                was_cancelled = bool_from_request(self.request.GET, 'was_cancelled', False)
 
-        # updates history
-        result = ser.validated_data.get('result')
-        was_cancelled = bool(ser.validated_data.get('was_cancelled', False))
-        # Keep backward compatibility with legacy query param override, but make
-        # sure validation is performed against the final effective value.
-        if 'was_cancelled' in self.request.GET:
-            was_cancelled = bool_from_request(self.request.GET, 'was_cancelled', False)
-        skip_reason = (ser.validated_data.get('skip_reason') or '').strip()
-        is_empty_result = isinstance(result, list) and len(result) == 0
+            extra_args = {
+                'task_id': task.id,
+                'project_id': task.project_id,
+                'was_cancelled': was_cancelled,
+            }
 
-        if was_cancelled and task.project.require_comment_on_skip and not skip_reason:
-            raise ValidationError({'skip_reason': 'Skip reason is required'})
+            # Save stats about how well annotator annotations coincide with current prediction.
+            if result is not None:
+                prediction = Prediction.objects.filter(task=task, model_version=task.project.model_version).first()
+                prediction_ser = PredictionSerializer(prediction).data if prediction else {}
+                extra_args.update({'prediction': prediction_ser, 'updated_by': user})
 
-        if not was_cancelled and is_empty_result and not task.project.enable_empty_annotation:
-            raise ValidationError({'result': 'Empty annotation is disabled for this project'})
+            if 'completed_by' not in ser.validated_data:
+                extra_args['completed_by'] = user
 
-        extra_args = {'task_id': self.kwargs['pk'], 'project_id': task.project_id}
-        extra_args['is_empty_submission'] = bool((not was_cancelled) and is_empty_result)
+            draft_id = self.request.data.get('draft_id')
+            draft = AnnotationDraft.objects.filter(id=draft_id).first()
+            if draft:
+                if draft.task_id != task.id or not draft.has_permission(user) or draft.user_id != user.id:
+                    raise PermissionDenied(f'You have no permission to draft id:{draft_id}')
 
-        # save stats about how well annotator annotations coincide with current prediction
-        # only for finished task annotations
-        if result is not None:
-            prediction = Prediction.objects.filter(task=task, model_version=task.project.model_version)
-            if prediction.exists():
-                prediction = prediction.first()
-                prediction_ser = PredictionSerializer(prediction).data
-            else:
-                logger.debug(f'User={self.request.user}: there are no predictions for task={task}')
-                prediction_ser = {}
-            # serialize annotation
-            extra_args.update({'prediction': prediction_ser, 'updated_by': user})
+            if draft is not None:
+                extra_args['draft_created_at'] = draft.created_at
 
-        extra_args['was_cancelled'] = was_cancelled
+            logger.debug(f'User={user}: save annotation')
+            annotation = ser.save(**extra_args)
 
-        if 'completed_by' not in ser.validated_data:
-            extra_args['completed_by'] = self.request.user
+            logger.debug(f'Save activity for user={user}')
+            user.activity_at = timezone.now()
+            user.save()
 
-        draft_id = self.request.data.get('draft_id')
-        draft = AnnotationDraft.objects.filter(id=draft_id).first()
-        if draft:
-            # draft permission check
-            if draft.task_id != task.id or not draft.has_permission(user) or draft.user_id != user.id:
-                raise PermissionDenied(f'You have no permission to draft id:{draft_id}')
+            logger.debug(f'User={user} releases task={task}')
+            task.release_lock(user)
 
-        if draft is not None:
-            # if the annotation will be created from draft - get created_at from draft to keep continuity of history
-            extra_args['draft_created_at'] = draft.created_at
+            if draft_id is not None:
+                logger.debug(f'Remove draft {draft_id} after creating annotation {annotation.id}')
+                self.delete_draft(draft_id, annotation.id)
 
-        # create annotation
-        logger.debug(f'User={self.request.user}: save annotation')
-        annotation = ser.save(**extra_args)
+            if self.request.data.get('ground_truth'):
+                annotation.task.ensure_unique_groundtruth(annotation_id=annotation.id)
 
-        logger.debug(f'Save activity for user={self.request.user}')
-        self.request.user.activity_at = timezone.now()
-        self.request.user.save()
-
-        # Release task if it has been taken at work (it should be taken by the same user, or it makes sentry error
-        logger.debug(f'User={user} releases task={task}')
-        task.release_lock(user)
-
-        # if annotation created from draft - remove this draft
-        if draft_id is not None:
-            logger.debug(f'Remove draft {draft_id} after creating annotation {annotation.id}')
-            self.delete_draft(draft_id, annotation.id)
-
-        if self.request.data.get('ground_truth'):
-            annotation.task.ensure_unique_groundtruth(annotation_id=annotation.id)
-
-        fill_history_annotation(user, task, annotation)
-
-        if annotation.was_cancelled:
-            TaskWorkflowAuditLog.objects.create(
-                project_id=task.project_id,
-                task_id=task.id,
-                annotation_id=annotation.id,
-                action=TaskWorkflowAuditLog.ACTION_SKIPPED,
-                actor=user,
-                reason=annotation.skip_reason or '',
-            )
-        elif annotation.is_empty_submission:
-            TaskWorkflowAuditLog.objects.create(
-                project_id=task.project_id,
-                task_id=task.id,
-                annotation_id=annotation.id,
-                action=TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED,
-                actor=user,
-                reason='',
-            )
-        else:
-            TaskWorkflowAuditLog.objects.create(
-                project_id=task.project_id,
-                task_id=task.id,
-                annotation_id=annotation.id,
-                action=TaskWorkflowAuditLog.ACTION_SUBMITTED,
-                actor=user,
-                reason='',
-            )
+            fill_history_annotation(user, task, annotation)
+            create_workflow_audit(task, annotation, user)
 
         return annotation
 
@@ -756,7 +718,7 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
         task_id = self.kwargs['pk']
         task = generics.get_object_or_404(Task.objects.for_user(self.request.user), pk=task_id)
         if not can_user_access_task(task, self.request.user):
-            return queryset.none()
+            raise PermissionDenied('You have no access to this task')
         return queryset.filter(task_id=task_id)
 
     def perform_create(self, serializer):
@@ -771,7 +733,7 @@ class AnnotationDraftListAPI(generics.ListCreateAPIView):
 
 
 @extend_schema(exclude=True)
-class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
+class AnnotationDraftAPI(AssignmentScopedTaskObjectMixin, generics.RetrieveUpdateDestroyAPIView):
     parser_classes = (JSONParser, MultiPartParser, FormParser)
     serializer_class = AnnotationDraftSerializer
     queryset = AnnotationDraft.objects.all()
@@ -781,6 +743,11 @@ class AnnotationDraftAPI(generics.RetrieveUpdateDestroyAPIView):
         PATCH=all_permissions.annotations_change,
         DELETE=all_permissions.annotations_delete,
     )
+
+    def get_queryset(self):
+        return filter_task_related_queryset_for_user(
+            AnnotationDraft.objects.all(), self.request.user, project_lookup='task__project', task_lookup='task'
+        )
 
 
 @method_decorator(
@@ -964,9 +931,14 @@ class PredictionAPI(viewsets.ModelViewSet):
         },
     ),
 )
-class AnnotationConvertAPI(generics.RetrieveAPIView):
+class AnnotationConvertAPI(AssignmentScopedTaskObjectMixin, generics.RetrieveAPIView):
     permission_required = ViewClassPermission(POST=all_permissions.annotations_change)
     queryset = Annotation.objects.all()
+
+    def get_queryset(self):
+        return filter_task_related_queryset_for_user(
+            Annotation.objects.all(), self.request.user, project_lookup='project', task_lookup='task'
+        )
 
     def process_intermediate_state(self, annotation, draft):
         pass

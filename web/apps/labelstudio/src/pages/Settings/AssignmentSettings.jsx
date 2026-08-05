@@ -1,10 +1,13 @@
 import { Button } from "@humansignal/ui";
 import i18next from "i18next";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAPI } from "../../providers/ApiProvider";
 import { useProject } from "../../providers/ProjectProvider";
 import { cn } from "../../utils/bem";
+import { Pagination } from "../../components/Pagination/Pagination";
+
+const PAGE_SIZE = 50;
 
 export const AssignmentSettings = () => {
   const { t } = useTranslation();
@@ -18,8 +21,16 @@ export const AssignmentSettings = () => {
   const [assignmentCount, setAssignmentCount] = useState(0);
   const [auditLogs, setAuditLogs] = useState([]);
   const [auditCount, setAuditCount] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [assignmentPage, setAssignmentPage] = useState(1);
+  const [auditPage, setAuditPage] = useState(1);
+  const [assignmentLoading, setAssignmentLoading] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [mutationLoading, setMutationLoading] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [message, setMessage] = useState("");
+  const assignmentRequestSequence = useRef(0);
+  const auditRequestSequence = useRef(0);
+  const loading = assignmentLoading || auditLoading || mutationLoading;
 
   const normalizedTaskIds = useMemo(() => {
     const ids = (taskIdsInput || "")
@@ -29,43 +40,63 @@ export const AssignmentSettings = () => {
     return [...new Set(ids)];
   }, [taskIdsInput]);
 
-  const fetchAssignments = useCallback(async () => {
-    if (!project?.id) return;
-    const response = await api.callApi("projectAssignments", {
-      params: { pk: project.id, page: 1, page_size: 50 },
-    });
-    setAssignments(response?.results ?? []);
-    setAssignmentCount(response?.count ?? 0);
-    setMembers(response?.members ?? []);
-    setCanManage(Boolean(response?.can_manage));
-  }, [api, project?.id]);
+  const actionDisplay = useCallback(
+    (action) => t(`assignment_settings.action_${action}`, { defaultValue: action }),
+    [t],
+  );
 
-  const fetchAuditLogs = useCallback(async () => {
-    if (!project?.id) return;
-    const response = await api.callApi("projectAssignmentAudit", {
-      params: { pk: project.id, page: 1, page_size: 50 },
-    });
-    setAuditLogs(response?.results ?? []);
-    setAuditCount(response?.count ?? 0);
-  }, [api, project?.id]);
+  const fetchAssignments = useCallback(
+    async (page) => {
+      if (!project?.id) return;
+      const requestId = ++assignmentRequestSequence.current;
+      setAssignmentLoading(true);
+      try {
+        const response = await api.callApi("projectAssignments", {
+          params: { pk: project.id, page, page_size: PAGE_SIZE },
+        });
+        if (!response || requestId !== assignmentRequestSequence.current) return;
+        setAssignments(response?.results ?? []);
+        setAssignmentCount(response?.count ?? 0);
+        setMembers(response?.members ?? []);
+        setCanManage(Boolean(response?.can_manage));
+      } finally {
+        if (requestId === assignmentRequestSequence.current) setAssignmentLoading(false);
+      }
+    },
+    [api, project?.id],
+  );
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      await Promise.all([fetchAssignments(), fetchAuditLogs()]);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchAssignments, fetchAuditLogs]);
+  const fetchAuditLogs = useCallback(
+    async (page) => {
+      if (!project?.id) return;
+      const requestId = ++auditRequestSequence.current;
+      setAuditLoading(true);
+      try {
+        const response = await api.callApi("projectAssignmentAudit", {
+          params: { pk: project.id, page, page_size: PAGE_SIZE },
+        });
+        if (!response || requestId !== auditRequestSequence.current) return;
+        setAuditLogs(response?.results ?? []);
+        setAuditCount(response?.count ?? 0);
+      } finally {
+        if (requestId === auditRequestSequence.current) setAuditLoading(false);
+      }
+    },
+    [api, project?.id],
+  );
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    fetchAssignments(assignmentPage);
+  }, [assignmentPage, fetchAssignments, refreshVersion]);
+
+  useEffect(() => {
+    fetchAuditLogs(auditPage);
+  }, [auditPage, fetchAuditLogs, refreshVersion]);
 
   const applyAssignment = async () => {
     if (!project?.id || normalizedTaskIds.length === 0) return;
 
-    setLoading(true);
+    setMutationLoading(true);
     setMessage("");
     try {
       const response = await api.callApi("updateProjectAssignments", {
@@ -75,11 +106,15 @@ export const AssignmentSettings = () => {
           task_ids: normalizedTaskIds,
         },
       });
+      if (!response?.$meta?.ok) return;
+
       setMessage(response?.detail ?? t("assignment_settings.operation_done", "Operation completed"));
       setTaskIdsInput("");
-      await Promise.all([fetchAssignments(), fetchAuditLogs()]);
+      setAssignmentPage(1);
+      setAuditPage(1);
+      setRefreshVersion((version) => version + 1);
     } finally {
-      setLoading(false);
+      setMutationLoading(false);
     }
   };
 
@@ -97,7 +132,11 @@ export const AssignmentSettings = () => {
             )}
           </p>
           <div className={cn("assignment-settings").elem("controls").toClassName()}>
-            <select value={assignee} onChange={(event) => setAssignee(event.target.value)} disabled={!canManage || loading}>
+            <select
+              value={assignee}
+              onChange={(event) => setAssignee(event.target.value)}
+              disabled={!canManage || loading}
+            >
               <option value="0">{t("assignment_settings.unassigned", "Unassigned")}</option>
               {members.map((member) => (
                 <option key={member.id} value={String(member.id)}>
@@ -129,7 +168,9 @@ export const AssignmentSettings = () => {
         </div>
 
         <div className={cn("settings-wrapper").toClassName()}>
-          <h3>{t("assignment_settings.current_title", "Current Assignment Records")} ({assignmentCount})</h3>
+          <h3>
+            {t("assignment_settings.current_title", "Current Assignment Records")} ({assignmentCount})
+          </h3>
           <table className={cn("assignment-settings").elem("table").toClassName()}>
             <thead>
               <tr>
@@ -155,10 +196,22 @@ export const AssignmentSettings = () => {
               )}
             </tbody>
           </table>
+          <Pagination
+            name="project-assignment-records"
+            label={t("assignment_settings.current_title", "Current Assignment Records")}
+            page={assignmentPage}
+            totalItems={assignmentCount}
+            totalPages={Math.max(1, Math.ceil(assignmentCount / PAGE_SIZE))}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+            onPageLoad={async (page) => setAssignmentPage(page)}
+          />
         </div>
 
         <div className={cn("settings-wrapper").toClassName()}>
-          <h3>{t("assignment_settings.audit_title", "Audit Logs")} ({auditCount})</h3>
+          <h3>
+            {t("assignment_settings.audit_title", "Audit Logs")} ({auditCount})
+          </h3>
           <table className={cn("assignment-settings").elem("table").toClassName()}>
             <thead>
               <tr>
@@ -174,7 +227,7 @@ export const AssignmentSettings = () => {
               {auditLogs.map((item) => (
                 <tr key={item.id}>
                   <td>#{item.task_id}</td>
-                  <td>{item.action}</td>
+                  <td>{actionDisplay(item.action)}</td>
                   <td>{item?.previous_assignee?.display_name ?? "-"}</td>
                   <td>{item?.assignee?.display_name ?? "-"}</td>
                   <td>{item?.assigned_by?.display_name ?? "-"}</td>
@@ -188,6 +241,16 @@ export const AssignmentSettings = () => {
               )}
             </tbody>
           </table>
+          <Pagination
+            name="project-assignment-audit"
+            label={t("assignment_settings.audit_title", "Audit Logs")}
+            page={auditPage}
+            totalItems={auditCount}
+            totalPages={Math.max(1, Math.ceil(auditCount / PAGE_SIZE))}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+            onPageLoad={async (page) => setAuditPage(page)}
+          />
         </div>
       </div>
     </div>

@@ -1,10 +1,14 @@
 import { Button } from "@humansignal/ui";
 import i18next from "i18next";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAPI } from "../../providers/ApiProvider";
 import { useProject } from "../../providers/ProjectProvider";
 import { cn } from "../../utils/bem";
+import { Pagination } from "../../components/Pagination/Pagination";
+import { absoluteURL } from "../../utils/helpers";
+
+const PAGE_SIZE = 100;
 
 export const WorkflowAuditSettings = () => {
   const { t } = useTranslation();
@@ -14,44 +18,52 @@ export const WorkflowAuditSettings = () => {
   const [auditCount, setAuditCount] = useState(0);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({
     action: "",
     actor_id: "",
     date_from: "",
     date_to: "",
   });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const requestSequence = useRef(0);
 
   const requestParams = useMemo(() => {
     const params = {
       pk: project?.id,
-      page: 1,
-      page_size: 100,
+      page,
+      page_size: PAGE_SIZE,
     };
 
-    if (filters.action) params.action = filters.action;
-    if (filters.actor_id) params.actor_id = Number(filters.actor_id);
-    if (filters.date_from) params.date_from = filters.date_from;
-    if (filters.date_to) params.date_to = filters.date_to;
+    if (appliedFilters.action) params.action = appliedFilters.action;
+    if (appliedFilters.actor_id) params.actor_id = Number(appliedFilters.actor_id);
+    if (appliedFilters.date_from) params.date_from = appliedFilters.date_from;
+    if (appliedFilters.date_to) params.date_to = appliedFilters.date_to;
 
     return params;
-  }, [filters.action, filters.actor_id, filters.date_from, filters.date_to, project?.id]);
+  }, [appliedFilters, page, project?.id]);
 
-  const fetchAuditLogs = useCallback(async () => {
-    if (!project?.id) return;
+  const fetchAuditLogs = useCallback(
+    async (params = requestParams) => {
+      if (!project?.id) return;
 
-    setLoading(true);
-    try {
-      const response = await api.callApi("projectWorkflowAudit", {
-        params: requestParams,
-      });
+      const requestId = ++requestSequence.current;
+      setLoading(true);
+      try {
+        const response = await api.callApi("projectWorkflowAudit", {
+          params,
+        });
+        if (!response || requestId !== requestSequence.current) return;
 
-      setAuditLogs(response?.results ?? []);
-      setAuditCount(response?.count ?? 0);
-      setMembers(response?.members ?? []);
-    } finally {
-      setLoading(false);
-    }
-  }, [api, project?.id, requestParams]);
+        setAuditLogs(response?.results ?? []);
+        setAuditCount(response?.count ?? 0);
+        setMembers(response?.members ?? []);
+      } finally {
+        if (requestId === requestSequence.current) setLoading(false);
+      }
+    },
+    [api, project?.id, requestParams],
+  );
 
   useEffect(() => {
     fetchAuditLogs();
@@ -61,11 +73,31 @@ export const WorkflowAuditSettings = () => {
     (action) => {
       if (action === "submitted") return t("workflow_audit_settings.action_submitted", "Submitted");
       if (action === "skipped") return t("workflow_audit_settings.action_skipped", "Skipped");
-      if (action === "empty_submitted") return t("workflow_audit_settings.action_empty", "Empty Submitted");
       return action;
     },
     [t],
   );
+
+  const applyFilters = useCallback(() => {
+    setPage(1);
+    setAppliedFilters(filters);
+  }, [filters]);
+
+  const exportCsv = useCallback(() => {
+    if (!project?.id) return;
+
+    const params = new URLSearchParams({ format: "csv" });
+    if (filters.action) params.set("action", filters.action);
+    if (filters.actor_id) params.set("actor_id", filters.actor_id);
+    if (filters.date_from) params.set("date_from", filters.date_from);
+    if (filters.date_to) params.set("date_to", filters.date_to);
+
+    window.open(
+      absoluteURL(`/api/projects/${project.id}/workflow-audit/?${params.toString()}`),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }, [filters.action, filters.actor_id, filters.date_from, filters.date_to, project?.id]);
 
   return (
     <div className={cn("assignment-settings").toClassName()}>
@@ -87,7 +119,6 @@ export const WorkflowAuditSettings = () => {
               <option value="">{t("workflow_audit_settings.all_actions", "All Actions")}</option>
               <option value="submitted">{t("workflow_audit_settings.action_submitted", "Submitted")}</option>
               <option value="skipped">{t("workflow_audit_settings.action_skipped", "Skipped")}</option>
-              <option value="empty_submitted">{t("workflow_audit_settings.action_empty", "Empty Submitted")}</option>
             </select>
 
             <select
@@ -119,10 +150,12 @@ export const WorkflowAuditSettings = () => {
               disabled={loading}
             />
 
-            <Button onClick={fetchAuditLogs} disabled={loading}>
+            <Button onClick={applyFilters} disabled={loading}>
               {t("workflow_audit_settings.apply_filters", "Apply Filters")}
             </Button>
-
+            <Button onClick={exportCsv} disabled={!project?.id || loading} look="outlined">
+              {t("workflow_audit_settings.export_csv", "Export CSV")}
+            </Button>
           </div>
         </div>
 
@@ -135,7 +168,6 @@ export const WorkflowAuditSettings = () => {
               <tr>
                 <th>{t("workflow_audit_settings.task_col", "Task ID")}</th>
                 <th>{t("workflow_audit_settings.action_col", "Action")}</th>
-                <th>{t("workflow_audit_settings.reason_col", "Reason")}</th>
                 <th>{t("workflow_audit_settings.actor_col", "Actor")}</th>
                 <th>{t("workflow_audit_settings.time_col", "Time")}</th>
               </tr>
@@ -145,18 +177,27 @@ export const WorkflowAuditSettings = () => {
                 <tr key={item.id}>
                   <td>#{item.task_id}</td>
                   <td>{actionDisplay(item.action)}</td>
-                  <td>{item.reason || "-"}</td>
                   <td>{item?.actor?.display_name ?? "-"}</td>
                   <td>{item?.created_at ? new Date(item.created_at).toLocaleString() : "-"}</td>
                 </tr>
               ))}
               {auditLogs.length === 0 && (
                 <tr>
-                  <td colSpan={5}>{t("workflow_audit_settings.empty", "No records")}</td>
+                  <td colSpan={4}>{t("workflow_audit_settings.empty", "No records")}</td>
                 </tr>
               )}
             </tbody>
           </table>
+          <Pagination
+            name="project-workflow-audit"
+            label={t("workflow_audit_settings.list_title", "Audit Records")}
+            page={page}
+            totalItems={auditCount}
+            totalPages={Math.max(1, Math.ceil(auditCount / PAGE_SIZE))}
+            pageSize={PAGE_SIZE}
+            disabled={loading}
+            onPageLoad={async (nextPage) => setPage(nextPage)}
+          />
         </div>
       </div>
     </div>

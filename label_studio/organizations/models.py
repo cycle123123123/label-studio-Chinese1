@@ -70,6 +70,16 @@ class OrganizationMember(OrganizationMemberMixin, models.Model):
                 self.user.avatar = None
             self.user.save(update_fields=['active_organization', 'avatar'])
 
+            # Existing manual assignments are access grants. Revoke them when
+            # the organization membership is removed, while preserving the
+            # immutable assignment audit log.
+            from tasks.models import TaskAssignment
+
+            TaskAssignment.objects.filter(
+                user_id=self.user_id,
+                task__project__organization_id=self.organization_id,
+            ).delete()
+
         self.user.task_locks.all().delete()
 
 

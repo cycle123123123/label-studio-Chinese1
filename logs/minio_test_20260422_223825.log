@@ -1,0 +1,41 @@
+2026-04-22 22:38:25,162 - INFO - 初始化MinIO客户端 - 端点: s3.nacta.edu.cn, 桶: lable-studio
+2026-04-22 22:38:25,163 - DEBUG - Access Key: AT_7...m8Cb
+2026-04-22 22:38:25,163 - INFO - ✅ MinIO客户端初始化成功
+2026-04-22 22:38:25,163 - INFO - MinIO客户端版本: 7.2.20
+2026-04-22 22:38:25,163 - DEBUG - MinIO安装路径: C:\Users\CYCLE\anaconda3\Lib\site-packages\minio\__init__.py
+2026-04-22 22:38:25,163 - DEBUG - 检查可用方法:
+2026-04-22 22:38:25,163 - DEBUG -   - presigned_get_object: 可用
+2026-04-22 22:38:25,163 - DEBUG -   - get_presigned_url: 可用
+2026-04-22 22:38:25,163 - INFO - ============================================================
+2026-04-22 22:38:25,163 - INFO - 开始 MinIO 功能测试
+2026-04-22 22:38:25,164 - INFO - 时间: 2026-04-22 22:38:25
+2026-04-22 22:38:25,164 - INFO - 日志文件: logs\minio_test_20260422_223825.log
+2026-04-22 22:38:25,164 - INFO - ============================================================
+2026-04-22 22:38:25,164 - INFO - 
+[测试1] 连接测试
+2026-04-22 22:38:25,164 - INFO - ----------------------------------------
+2026-04-22 22:38:25,164 - INFO - 尝试连接到MinIO服务器...
+2026-04-22 22:38:26,893 - ERROR - ❌ 连接失败: S3 operation failed; code: InvalidAccessKeyId, message: The Access Key Id you provided does not exist in our records., resource: /, request_id: 18A8B4ACC32CFF71, host_id: 5ad687027f1dc36c3ad44c06381603a12ff780b15850890281227e9d0d946bcb
+2026-04-22 22:38:26,893 - ERROR - 错误代码: InvalidAccessKeyId, 错误信息: The Access Key Id you provided does not exist in our records.
+2026-04-22 22:38:26,897 - DEBUG - Traceback (most recent call last):
+  File "d:\work\label-studio-Chinese\test_minio.py", line 107, in test_connection
+    buckets = self.client.list_buckets()
+  File "C:\Users\CYCLE\anaconda3\Lib\site-packages\minio\api.py", line 681, in list_buckets
+    response = self._execute("GET")
+  File "C:\Users\CYCLE\anaconda3\Lib\site-packages\minio\api.py", line 444, in _execute
+    return self._url_open(
+           ~~~~~~~~~~~~~~^
+        method,
+        ^^^^^^^
+    ...<7 lines>...
+        no_body_trace=no_body_trace,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\CYCLE\anaconda3\Lib\site-packages\minio\api.py", line 427, in _url_open
+    raise response_error
+minio.error.S3Error: S3 operation failed; code: InvalidAccessKeyId, message: The Access Key Id you provided does not exist in our records., resource: /, request_id: 18A8B4ACC32CFF71, host_id: 5ad687027f1dc36c3ad44c06381603a12ff780b15850890281227e9d0d946bcb
+
+2026-04-22 22:38:26,897 - ERROR - ❌ 连接测试失败，终止测试
+2026-04-22 22:38:26,897 - ERROR - 
+❌ 测试失败，请检查配置和权限！

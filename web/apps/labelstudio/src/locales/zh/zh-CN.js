@@ -15,7 +15,7 @@ export const TRANSLATIONS_ZH = {
   Comments: "评论", // 新增
 
   common: {
-    opens_new_tab: '(在新标签页打开)',
+    opens_new_tab: "(在新标签页打开)",
     es: "是",
     no: "否",
     apply: "应用",
@@ -289,10 +289,10 @@ export const TRANSLATIONS_ZH = {
   },
   filters: {
     // 1. 列表状态
-    empty: "未应用筛选",          // No filters applied
+    empty: "未应用筛选", // No filters applied
 
     // 2. 按钮和操作
-    add_filter: "添加筛选",       // Add Filter
+    add_filter: "添加筛选", // Add Filter
     add_another_filter: "添加筛选", // Add Another Filter
     pin: "固定到侧边栏",
     unpin: "取消固定筛选栏",
@@ -307,8 +307,8 @@ export const TRANSLATIONS_ZH = {
 
     // 4. 逻辑连接词
     where: "条件", // Where
-    and: "并且",   // 逻辑与 (Logic AND)
-    or: "或者",    // 逻辑或 (Logic OR)
+    and: "并且", // 逻辑与 (Logic AND)
+    or: "或者", // 逻辑或 (Logic OR)
 
     // 5. 新增：专门用于数值范围的连接词 (为了解决冲突)
     range_and: "至",
@@ -327,7 +327,7 @@ export const TRANSLATIONS_ZH = {
       not_contains: "不包含",
       starts_with: "以...开始",
       ends_with: "以...结束",
-      empty: "为空",          // 这里的 empty 是操作符，不与外面的 empty 冲突，因为在 operators 对象内
+      empty: "为空", // 这里的 empty 是操作符，不与外面的 empty 冲突，因为在 operators 对象内
       not_empty: "不为空",
       regex: "正则匹配",
 
@@ -346,52 +346,56 @@ export const TRANSLATIONS_ZH = {
   // ========= 新增：RegionContextMenu 组件翻译 =========
   // ==================================================
   tabs_menu: {
-    rename: '重命名',
-    duplicate: '复制', // 或者 "创建副本"
-    save: '保存',
-    close: '关闭',
+    rename: "重命名",
+    duplicate: "复制", // 或者 "创建副本"
+    save: "保存",
+    close: "关闭",
   },
   region: {
-    link_copied: '区域链接已复制到剪贴板',
-    copy_link: '复制区域链接',
-    options: '区域选项',
+    link_copied: "区域链接已复制到剪贴板",
+    copy_link: "复制区域链接",
+    options: "区域选项",
   },
   messages: {
-    done: '完成！',
-    no_comp_left: '没有更多标注了',
-    no_next_task: '队列中没有更多任务了',
-    no_access: '您没有访问此任务的权限',
-    confirm_delete_all_regions: '请确认您要删除所有已标注的区域',
+    done: "完成！",
+    no_comp_left: "没有更多标注了",
+    no_next_task: "队列中没有更多任务了",
+    no_access: "您没有访问此任务的权限",
+    confirm_delete_all_regions: "请确认您要删除所有已标注的区域",
 
-    err_required: '属性 <b>{{field}}</b> 对于 <b>{{modelName}}</b> 是必须的',
-    err_unknown_tag: '名称为 <b>{{value}}</b> 的标签未注册。被 <b>{{modelName}}#{{field}}</b> 引用。',
-    err_tag_not_found: '配置中不存在名为 <b>{{value}}</b> 的标签。被 <b>{{modelName}}#{{field}}</b> 引用。',
-    err_tag_unsupported: '<b>{{modelName}}</b> 的属性 <b>{{field}}</b> 无效：引用的标签是 <b>{{value}}</b>，但 <b>{{modelName}}</b> 只能控制 <b>{{validTypes}}</b>',
-    err_parent_tag_unexpected: '标签 <b>{{value}}</b> 必须是以下标签之一的子标签：<b>{{validTypes}}</b>。',
-    err_bad_type: '标签 <b>{{modelName}}</b> 的属性 <b>{{field}}</b> 类型无效。有效类型为：<b>{{validTypes}}</b>。',
-    err_internal: '内部错误。请查看浏览器控制台了解更多信息。请重试或联系开发人员。<br/>{{value}}',
+    err_required: "属性 <b>{{field}}</b> 对于 <b>{{modelName}}</b> 是必须的",
+    err_unknown_tag: "名称为 <b>{{value}}</b> 的标签未注册。被 <b>{{modelName}}#{{field}}</b> 引用。",
+    err_tag_not_found: "配置中不存在名为 <b>{{value}}</b> 的标签。被 <b>{{modelName}}#{{field}}</b> 引用。",
+    err_tag_unsupported:
+      "<b>{{modelName}}</b> 的属性 <b>{{field}}</b> 无效：引用的标签是 <b>{{value}}</b>，但 <b>{{modelName}}</b> 只能控制 <b>{{validTypes}}</b>",
+    err_parent_tag_unexpected: "标签 <b>{{value}}</b> 必须是以下标签之一的子标签：<b>{{validTypes}}</b>。",
+    err_bad_type: "标签 <b>{{modelName}}</b> 的属性 <b>{{field}}</b> 类型无效。有效类型为：<b>{{validTypes}}</b>。",
+    err_internal: "内部错误。请查看浏览器控制台了解更多信息。请重试或联系开发人员。<br/>{{value}}",
 
-    loading_audio_error: '加载音频时出错。请检查任务中的 <code>{{attr}}</code> 字段。',
-    technical_description: '技术说明：{{error}}',
+    loading_audio_error: "加载音频时出错。请检查任务中的 <code>{{attr}}</code> 字段。",
+    technical_description: "技术说明：{{error}}",
 
     // 注意：外层用单引号，内部的 HTML 属性就可以直接使用标准的双引号，无需转义
-    loading_s3_error: '<div><p>从 <code>{{attr}}</code> 值加载 URL 时出现问题。请求参数无效。如果您使用的是 S3，请确保指定了正确的存储桶区域名称 (Region Name)。</p><p>URL: <code><a href="{{url}}" target="_blank" rel="noreferrer">{{urlText}}</a></code></p></div>',
+    loading_s3_error:
+      '<div><p>从 <code>{{attr}}</code> 值加载 URL 时出现问题。请求参数无效。如果您使用的是 S3，请确保指定了正确的存储桶区域名称 (Region Name)。</p><p>URL: <code><a href="{{url}}" target="_blank" rel="noreferrer">{{urlText}}</a></code></p></div>',
 
-    loading_cors_error: '<div><p>从 <code>{{attr}}</code> 值加载 URL 时出现问题。最可能的原因是静态文件服务器没有正确配置 CORS (跨域资源共享)。<a href="{{docLink}}" target="_blank">点击此处了解更多信息。</a></p><p>此外请检查：<ul><li>URL 是否有效</li><li>网络是否可达</li></ul></p><p>URL: <code><a href="{{url}}" target="_blank" rel="noreferrer">{{urlText}}</a></code></p></div>',
+    loading_cors_error:
+      '<div><p>从 <code>{{attr}}</code> 值加载 URL 时出现问题。最可能的原因是静态文件服务器没有正确配置 CORS (跨域资源共享)。<a href="{{docLink}}" target="_blank">点击此处了解更多信息。</a></p><p>此外请检查：<ul><li>URL 是否有效</li><li>网络是否可达</li></ul></p><p>URL: <code><a href="{{url}}" target="_blank" rel="noreferrer">{{urlText}}</a></code></p></div>',
 
-    loading_http_error_p1: '从 <code>{{attr}}</code> 值加载 URL 时出现问题',
+    loading_http_error_p1: "从 <code>{{attr}}</code> 值加载 URL 时出现问题",
 
-    loading_http_error_list: '<ul><li>URL 是否有效</li><li>URL 协议是否与服务协议匹配，例如均使用 https</li><li>静态文件服务器是否配置了 CORS (允许跨域)，<a href={{docLink}} target="_blank">点击此处了解更多</a></li></ul>',
+    loading_http_error_list:
+      '<ul><li>URL 是否有效</li><li>URL 协议是否与服务协议匹配，例如均使用 https</li><li>静态文件服务器是否配置了 CORS (允许跨域)，<a href={{docLink}} target="_blank">点击此处了解更多</a></li></ul>',
 
-    things_to_look_out: '需要注意的事项：',
+    things_to_look_out: "需要注意的事项：",
   },
   app: {
-  all_tasks_completed: '队列中的所有任务已完成',
-  go_to_prev_task: '返回上一个任务',
-  // {{id}} 是动态参数占位符
-  task_id: '任务 #{{id}}',
-  review_instructions: '审核说明',
-  labeling_instructions: '标注说明',
+    all_tasks_completed: "队列中的所有任务已完成",
+    go_to_prev_task: "返回上一个任务",
+    // {{id}} 是动态参数占位符
+    task_id: "任务 #{{id}}",
+    review_instructions: "审核说明",
+    labeling_instructions: "标注说明",
   },
   context: {
     copyLink: "复制区域链接",
@@ -410,8 +414,8 @@ export const TRANSLATIONS_ZH = {
     COMPLETED: "任务已全部完成",
   },
   data_manager: {
-    filters: '筛选',
-    redis: 'Redis 存储',
+    filters: "筛选",
+    redis: "Redis 存储",
     list_view: "列表视图",
     grid_view: "网格视图",
     tasks: "任务",
@@ -425,30 +429,30 @@ export const TRANSLATIONS_ZH = {
     // === 确认或添加 order_by ===
     order_by: "排序",
 
-     empty_state: {
-      docs_link: '查看数据导入文档',
-      no_tasks_found: '未找到任务',
-      adjust_filters: '请尝试调整或清除筛选条件以查看更多结果',
-      clear_filters: '清除筛选',
-      reviewer_no_tasks_title: '暂无需要审查或标注的任务',
-      reviewer_no_tasks_desc: '导入此项目的任务将显示在此处',
-      annotator_start_labeling: '开始标注任务',
-      annotator_labeled_desc: '您标注过的任务将显示在此处',
-      label_all_tasks: '标注所有任务',
-      no_tasks_available: '没有可用任务',
-      annotator_assigned_desc: '分配给您的任务将显示在此处',
-      tasks_will_appear_here: '当有可用任务时，它们将显示在此处',
-      import_title: '导入数据以启动项目',
-      import_desc: '连接您的云存储或从本地上传文件',
-      connect_storage: '连接云存储',
-      import_button: '导入',
+    empty_state: {
+      docs_link: "查看数据导入文档",
+      no_tasks_found: "未找到任务",
+      adjust_filters: "请尝试调整或清除筛选条件以查看更多结果",
+      clear_filters: "清除筛选",
+      reviewer_no_tasks_title: "暂无需要审查或标注的任务",
+      reviewer_no_tasks_desc: "导入此项目的任务将显示在此处",
+      annotator_start_labeling: "开始标注任务",
+      annotator_labeled_desc: "您标注过的任务将显示在此处",
+      label_all_tasks: "标注所有任务",
+      no_tasks_available: "没有可用任务",
+      annotator_assigned_desc: "分配给您的任务将显示在此处",
+      tasks_will_appear_here: "当有可用任务时，它们将显示在此处",
+      import_title: "导入数据以启动项目",
+      import_desc: "连接您的云存储或从本地上传文件",
+      connect_storage: "连接云存储",
+      import_button: "导入",
     },
 
     // === 新增 Sort (排序) 相关翻译 ===
     sort: {
       default: "默认",
       ascending: "升序排列",
-      descending: "降序排列"
+      descending: "降序排列",
     },
     summary: {
       storage_sync: "存储同步",
@@ -457,25 +461,25 @@ export const TRANSLATIONS_ZH = {
       predictions: "预测",
       tooltips: {
         filtered_tasks: "筛选后的任务",
-        total_tasks: "项目中的总任务数"
-      }
+        total_tasks: "项目中的总任务数",
+      },
     },
     label_button: {
       all: "标注所有任务",
       selected: "标注 {{count}} 个任务",
       displayed: "标注当前显示的任务",
-      toggle: "切换菜单" // aria-label
+      toggle: "切换菜单", // aria-label
     },
     density: {
       comfortable: "舒适视图",
-      compact: "紧凑视图"
+      compact: "紧凑视图",
     },
     grid_width: {
       columns: "列数: {{width}}",
       decrease: "减少列数",
       increase: "增加列数",
       fit_images: "图片适应宽度",
-      settings: "网格设置"
+      settings: "网格设置",
     },
   },
 
@@ -533,7 +537,8 @@ export const TRANSLATIONS_ZH = {
     click_to_set: "点击设置快捷键",
     click_to_edit_tooltip: "点击编辑快捷键",
     import_dialog_title: "导入快捷键",
-    import_dialog_desc: "请在下方粘贴导出的快捷键 JSON 配置。这将替换您当前的快捷键设置。请确保 JSON 包含带有必要字段的快捷键对象数组。",
+    import_dialog_desc:
+      "请在下方粘贴导出的快捷键 JSON 配置。这将替换您当前的快捷键设置。请确保 JSON 包含带有必要字段的快捷键对象数组。",
     json_label: "快捷键 JSON",
     import_error_title: "导入错误",
     import_button: "导入快捷键",
@@ -571,11 +576,11 @@ export const TRANSLATIONS_ZH = {
       layout: "布局",
     },
     layout: {
-        move_bottom: "将侧边栏移至底部",
-        display_labels: "默认在结果面板显示标签",
-        show_annotations: "显示标注面板",
-        show_predictions: "显示预测面板",
-    }
+      move_bottom: "将侧边栏移至底部",
+      display_labels: "默认在结果面板显示标签",
+      show_annotations: "显示标注面板",
+      show_predictions: "显示预测面板",
+    },
   },
   roles: {
     owner: "所有者 (Owner)",
@@ -632,9 +637,11 @@ export const TRANSLATIONS_ZH = {
   webhook_list: {
     created_at: "创建于",
     section_title: "Webhooks",
-    description: "使用 Webhooks 设置订阅特定事件的集成。当事件被触发时，{{appName}} 会向配置的 webhook URL 发送一个 HTTP POST 请求。",
+    description:
+      "使用 Webhooks 设置订阅特定事件的集成。当事件被触发时，{{appName}} 会向配置的 webhook URL 发送一个 HTTP POST 请求。",
     empty_title: "添加您的第一个 webhook",
-    empty_desc: "使用 Webhooks 设置订阅特定事件的集成。当事件被触发时，Label Studio 会向配置的 webhook URL 发送一个 HTTP POST 请求。",
+    empty_desc:
+      "使用 Webhooks 设置订阅特定事件的集成。当事件被触发时，Label Studio 会向配置的 webhook URL 发送一个 HTTP POST 请求。",
     add_button: "添加 Webhook",
     contact_admin: "请联系您的管理员以创建 Webhooks",
     empty_learn_more_aria: "了解更多关于 webhooks 的信息（在新窗口中打开）",
@@ -723,6 +730,8 @@ export const TRANSLATIONS_ZH = {
     instructions_desc1: "编写说明以帮助用户完成标注任务。",
     instructions_desc2: "说明字段支持 HTML 标记，并允许使用图像、iframe (pdf)。",
     show_before_labeling: "在标注前显示",
+    workflow_policy_title: "工作流策略",
+    allow_skip: "允许标注员跳过任务",
     prelabeling_title: "预标注",
     use_predictions: "使用预测进行预标注",
     use_predictions_desc: "启用并选择要用于预标注的预测集。",
@@ -760,7 +769,7 @@ export const TRANSLATIONS_ZH = {
     help_tasks_existed: "已存在: {{count}}",
     help_tasks_total: "总计: {{count}}",
     new: "新增 {{count}}",
-    total: "总计 {{count}}"
+    total: "总计 {{count}}",
   },
   storage_settings: {
     import_from_cloud: "从云存储提供商导入您的数据",
@@ -790,8 +799,8 @@ export const TRANSLATIONS_ZH = {
       preview_loaded: "✓ 预览已加载",
       tooltips: {
         test_before_continue: "继续前请先测试连接",
-        provider_disabled: "当前版本不支持此提供商"
-      }
+        provider_disabled: "当前版本不支持此提供商",
+      },
     },
     steps: {
       select_provider: "选择提供商",
@@ -806,12 +815,12 @@ export const TRANSLATIONS_ZH = {
       title: {
         label: "存储标题",
         placeholder: "输入描述性名称（例如：“法律文档”、“训练数据”）",
-        description: "此名称将帮助您在项目中识别此连接"
+        description: "此名称将帮助您在项目中识别此连接",
       },
       can_delete_objects: {
         label: "允许从存储中删除对象",
-        description: "如果未选中，标注将不会从存储中删除"
-      }
+        description: "如果未选中，标注将不会从存储中删除",
+      },
     },
 
     preview_step: {
@@ -825,32 +834,32 @@ export const TRANSLATIONS_ZH = {
         label_suffix: "(可选)",
         desc_redis: "指定存储中文件所在的文件夹路径",
         desc_bucket: "指定存储桶中文件所在的文件夹路径",
-        placeholder: "path/to/files/ 或留空表示根目录"
+        placeholder: "path/to/files/ 或留空表示根目录",
       },
       import_method: {
         label: "导入方式 (可选)",
         description: "选择如何解释来自存储的数据",
         placeholder: "选择导入方式",
         option_files: "文件 - 为每个存储对象（如 JPG, MP3, TXT）自动创建一个任务",
-        option_tasks: "任务 - 将每个 JSON, JSONL 或 Parquet 视为一个或多个任务定义"
+        option_tasks: "任务 - 将每个 JSON, JSONL 或 Parquet 视为一个或多个任务定义",
       },
       file_filter: {
         label: "文件名过滤 (可选)",
         description: "使用正则模式过滤要导入的文件",
         placeholder_files: ".*\\.(jpg|png)$ - 仅导入 JPG, PNG 文件",
         placeholder_tasks: ".*\\.(json|jsonl|parquet)$ - 导入任务定义",
-        common_filters: "常用过滤器："
+        common_filters: "常用过滤器：",
       },
       scan_subfolders: {
         label: "扫描所有子文件夹",
-        description: "包含所有嵌套文件夹中的文件"
+        description: "包含所有嵌套文件夹中的文件",
       },
       preview_area: {
         no_preview: "暂无预览",
         no_preview_desc: "配置您的导入设置并点击“加载预览”以查看将要导入的文件示例。",
         no_files: "未找到文件",
         no_files_desc: "未找到符合当前条件的文件。请尝试调整过滤器设置并重新加载预览。",
-        limit_reached: "... 已达预览限制 ..."
+        limit_reached: "... 已达预览限制 ...",
       },
       filters: {
         Images: "图片",
@@ -860,8 +869,8 @@ export const TRANSLATIONS_ZH = {
         JSON: "JSON",
         JSONL: "JSONL",
         Parquet: "Parquet",
-        "All Tasks Files": "所有任务文件"
-      }
+        "All Tasks Files": "所有任务文件",
+      },
     },
 
     review_step: {
@@ -873,28 +882,28 @@ export const TRANSLATIONS_ZH = {
         prefix: "前缀",
         files_to_import: "即将导入的文件",
         total_size: "总大小",
-        not_specified: "未指定"
+        not_specified: "未指定",
       },
       file_stats: {
         zero_files: "0 个文件",
         more_than_files: "超过 {{count}} 个文件",
         file_count: "{{count}} 个文件",
         zero_bytes: "0 Bytes",
-        more_than_size: "超过 {{size}}"
+        more_than_size: "超过 {{size}}",
       },
       import_process: {
         title: "导入进程",
-        description: "文件将在后台导入。您可以在导入进行时继续工作。"
+        description: "文件将在后台导入。您可以在导入进行时继续工作。",
       },
       providers: {
-        localfiles: "本地文件"
-      }
+        localfiles: "本地文件",
+      },
     },
 
     selection_step: {
       title: "选择您的云存储提供商",
       description: "选择存储您数据的云存储服务",
-      label: "存储提供商"
+      label: "存储提供商",
     },
 
     providers: {
@@ -902,83 +911,83 @@ export const TRANSLATIONS_ZH = {
         title: "Databricks 文件\n(UC 卷)",
         description: "配置您的 Databricks Unity Catalog Volumes 连接所需的所有设置 (仅限代理)",
         enterprise_title: "企业版功能",
-        enterprise_description: "Databricks 文件 (UC 卷) 功能在 Label Studio 企业版中可用。"
+        enterprise_description: "Databricks 文件 (UC 卷) 功能在 Label Studio 企业版中可用。",
       },
       redis: {
         title: "Redis 存储",
         description: "配置您的 Redis 存储连接所需的所有 Label Studio 设置",
         fields: {
           db: {
-            label: "数据库编号 (db)"
+            label: "数据库编号 (db)",
           },
           password: {
             label: "密码",
-            placeholder: "您的 Redis 密码"
+            placeholder: "您的 Redis 密码",
           },
           host: {
             label: "主机",
-            placeholder: "redis://example.com"
+            placeholder: "redis://example.com",
           },
           port: {
-            label: "端口"
+            label: "端口",
           },
           prefix: {
             label: "存储桶前缀",
-            placeholder: "path/to/files"
-          }
+            placeholder: "path/to/files",
+          },
         },
         validation: {
-          host_required: "主机是必填项"
-        }
+          host_required: "主机是必填项",
+        },
       },
       s3: {
         title: "Amazon S3",
         description: "配置您的 AWS S3 连接所需的所有 Label Studio 设置",
         fields: {
           bucket: {
-            label: "存储桶名称"
+            label: "存储桶名称",
           },
           region_name: {
             label: "区域名称",
-            placeholder: "us-east-1 (默认)"
+            placeholder: "us-east-1 (默认)",
           },
           s3_endpoint: {
             label: "S3 端点",
-            placeholder: "https://s3.amazonaws.com (默认)"
+            placeholder: "https://s3.amazonaws.com (默认)",
           },
           prefix: {
             label: "存储桶前缀",
-            placeholder: "path/to/files"
+            placeholder: "path/to/files",
           },
           aws_access_key_id: {
-            label: "访问密钥 ID"
+            label: "访问密钥 ID",
           },
           aws_secret_access_key: {
-            label: "秘密访问密钥"
+            label: "秘密访问密钥",
           },
           aws_session_token: {
             label: "会话令牌",
-            placeholder: "会话令牌 (可选)"
+            placeholder: "会话令牌 (可选)",
           },
           presign: {
             label: "使用预签名 URL (开启) / 通过平台代理 (关闭)",
-            description: "启用预签名 URL 后，所有数据都将绕过平台，用户浏览器直接从存储中读取数据"
+            description: "启用预签名 URL 后，所有数据都将绕过平台，用户浏览器直接从存储中读取数据",
           },
           presign_ttl: {
-            label: "预签名 URL 过期时间 (分钟)"
-          }
+            label: "预签名 URL 过期时间 (分钟)",
+          },
         },
         validation: {
           bucket_required: "存储桶名称是必填项",
           access_key_id_required: "访问密钥 ID 是必填项",
-          secret_access_key_required: "秘密访问密钥是必填项"
-        }
+          secret_access_key_required: "秘密访问密钥是必填项",
+        },
       },
       s3s: {
         title: "Amazon S3\n(使用 IAM 角色)",
         description: "使用 IAM 角色访问配置您的 AWS S3 连接以增强安全性 (仅限代理)",
         enterprise_title: "企业版功能",
-        enterprise_description: "使用 IAM 角色的 Amazon S3 功能在 Label Studio 企业版中可用。"
+        enterprise_description: "使用 IAM 角色的 Amazon S3 功能在 Label Studio 企业版中可用。",
       },
       localfiles: {
         title: "本地文件",
@@ -986,59 +995,60 @@ export const TRANSLATIONS_ZH = {
         fields: {
           path: {
             label: "绝对本地路径",
-            placeholder: "/data/my-folder/"
+            placeholder: "/data/my-folder/",
           },
           prefix: {
             label: "路径",
-            placeholder: "path/to/files"
-          }
+            placeholder: "path/to/files",
+          },
         },
         validation: {
-          path_required: "路径是必填项"
-        }
+          path_required: "路径是必填项",
+        },
       },
       gcswif: {
         title: "Google Cloud Storage\n(WIF 认证)",
-        description: "配置您的 Google Cloud Storage 连接，使用工作负载身份联合 (Workload Identity Federation) 认证 (仅限代理)",
+        description:
+          "配置您的 Google Cloud Storage 连接，使用工作负载身份联合 (Workload Identity Federation) 认证 (仅限代理)",
         enterprise_title: "企业版功能",
-        enterprise_description: "支持工作负载身份联合 (WIF) 的 Google Cloud Storage 功能在 Label Studio 企业版中可用。"
+        enterprise_description: "支持工作负载身份联合 (WIF) 的 Google Cloud Storage 功能在 Label Studio 企业版中可用。",
       },
       gcs: {
         title: "Google Cloud Storage",
         description: "配置您的 Google Cloud Storage 连接所需的所有 Label Studio 设置",
         fields: {
           bucket: {
-            label: "存储桶名称"
+            label: "存储桶名称",
           },
           prefix: {
             label: "存储桶前缀",
-            placeholder: "path/to/files"
+            placeholder: "path/to/files",
           },
           google_application_credentials: {
             label: "Google 应用凭证",
-            description: "将 credentials.json 的内容粘贴到此字段中，或者留空以使用 ADC。"
+            description: "将 credentials.json 的内容粘贴到此字段中，或者留空以使用 ADC。",
           },
           google_project_id: {
             label: "Google 项目 ID",
-            description: "留空以从 Google 应用凭证继承。"
+            description: "留空以从 Google 应用凭证继承。",
           },
           presign: {
             label: "使用预签名 URL (开启) / 通过平台代理 (关闭)",
-            description: "启用预签名 URL 后，所有数据都将绕过平台，用户浏览器直接从存储中读取数据"
+            description: "启用预签名 URL 后，所有数据都将绕过平台，用户浏览器直接从存储中读取数据",
           },
           presign_ttl: {
-            label: "预签名 URL 过期时间 (分钟)"
-          }
+            label: "预签名 URL 过期时间 (分钟)",
+          },
         },
         validation: {
-          bucket_required: "存储桶名称是必填项"
-        }
+          bucket_required: "存储桶名称是必填项",
+        },
       },
       azure_spi: {
         title: "Azure Blob Storage\n(使用服务主体)",
         description: "使用服务主体身份验证配置您的 Azure Blob Storage 连接以增强安全性 (仅限代理)",
         enterprise_title: "企业版功能",
-        enterprise_description: "使用服务主体身份验证的 Azure Blob Storage 功能在 Label Studio 企业版中可用。"
+        enterprise_description: "使用服务主体身份验证的 Azure Blob Storage 功能在 Label Studio 企业版中可用。",
       },
       azure: {
         title: "Azure Blob 存储",
@@ -1046,33 +1056,33 @@ export const TRANSLATIONS_ZH = {
         fields: {
           container: {
             label: "容器名称",
-            placeholder: "my-azure-container"
+            placeholder: "my-azure-container",
           },
           prefix: {
             label: "容器前缀",
-            placeholder: "path/to/files"
+            placeholder: "path/to/files",
           },
           account_name: {
             label: "账户名称",
-            placeholder: "mystorageaccount"
+            placeholder: "mystorageaccount",
           },
           account_key: {
             label: "账户密钥",
-            placeholder: "您的存储账户密钥"
+            placeholder: "您的存储账户密钥",
           },
           presign: {
             label: "使用预签名 URL (开启) / 通过平台代理 (关闭)",
-            description: "启用预签名 URL 后，所有数据都将绕过平台，用户浏览器直接从存储中读取数据"
+            description: "启用预签名 URL 后，所有数据都将绕过平台，用户浏览器直接从存储中读取数据",
           },
           presign_ttl: {
-            label: "预签名 URL 过期时间 (分钟)"
-          }
+            label: "预签名 URL 过期时间 (分钟)",
+          },
         },
         validation: {
-          container_required: "容器名称是必填项"
-        }
-      }
-    }
+          container_required: "容器名称是必填项",
+        },
+      },
+    },
   },
 
   storage_set: {
@@ -1110,7 +1120,8 @@ export const TRANSLATIONS_ZH = {
     list_desc_part1: "项目中可用的预测列表。每个卡片都与一个独立的模型版本相关联。要了解如何导入预测，",
     list_desc_part2: "请参阅文档",
     empty_title: "尚未上传任何预测",
-    empty_desc: "上传预测以自动预标注您的数据并加速标注。从多个模型版本导入预测以比较它们的性能，或从“模型”页面连接实时模型以按需生成预测。",
+    empty_desc:
+      "上传预测以自动预标注您的数据并加速标注。从多个模型版本导入预测以比较它们的性能，或从“模型”页面连接实时模型以按需生成预测。",
     empty_learn_more_aria: "了解更多关于预测的信息（在新窗口中打开）",
   },
   predictions_list: {
@@ -1126,7 +1137,8 @@ export const TRANSLATIONS_ZH = {
     response_title: "响应",
   },
   start_training: {
-    intro: "您即将手动触发模型的训练过程。此操作将根据机器学习后端中训练方法的实现方式来启动学习阶段。请继续以开始此过程。",
+    intro:
+      "您即将手动触发模型的训练过程。此操作将根据机器学习后端中训练方法的实现方式来启动学习阶段。请继续以开始此过程。",
     note: "*注意：目前，此界面中没有内置的反馈循环来跟踪训练进度。您需要直接通过模型自身的工具和环境来监控模型的训练步骤。",
     button: "开始训练",
     request_sent: "请求已发送！",
@@ -1141,7 +1153,8 @@ export const TRANSLATIONS_ZH = {
     edit_model_title: "编辑模型",
     connect_model_title: "连接模型",
     empty_title: "让我们连接您的第一个模型",
-    empty_desc: "连接一个机器学习模型来为您的项目生成实时预测。比较预测结果，通过自动预标注加速标注过程，并通过主动学习将您的团队引导至最有影响力的任务。",
+    empty_desc:
+      "连接一个机器学习模型来为您的项目生成实时预测。比较预测结果，通过自动预标注加速标注过程，并通过主动学习将您的团队引导至最有影响力的任务。",
     empty_add_aria: "添加机器学习模型",
     empty_learn_more_aria: "了解更多关于机器学习模型的信息（在新窗口中打开）",
     connect_model_button: "连接模型",
@@ -1153,7 +1166,8 @@ export const TRANSLATIONS_ZH = {
     instructions_prelabeling_part2: "标注设置",
     config_label: "配置",
     training_on_submit_label: "提交标注时开始模型训练",
-    training_on_submit_desc: "此选项将在提交标注时向 /train 发送带有标注信息的请求。您可以用此功能来启用主动学习循环。您也可以通过模型卡片上的菜单手动开始训练。",
+    training_on_submit_desc:
+      "此选项将在提交标注时向 /train 发送带有标注信息的请求。您可以用此功能来启用主动学习循环。您也可以通过模型卡片上的菜单手动开始训练。",
     save_settings_aria: "保存机器学习设置",
   },
   ml_list: {
@@ -1212,6 +1226,37 @@ export const TRANSLATIONS_ZH = {
     confirm_aria: "确认删除 webhook",
   },
   lsf: {
+    controls: {
+      was_skipped: "已跳过",
+      next_task: "下一条任务",
+      next: "下一条",
+      submit: "提交",
+      update: "更新",
+      and_exit: "并退出",
+      empty_annotations_denied: "此项目不允许空标注",
+      save_results_tooltip_ctrl_enter: "保存结果：[Ctrl+Enter]",
+      save_results_tooltip: "保存结果：[Ctrl+Enter]",
+      submit_current_annotation: "提交当前标注",
+      submit_annotation: "提交标注",
+      no_changes_made: "没有作出更改",
+      update_task_tooltip_ctrl_enter: "更新此任务：[Ctrl+Enter]",
+      update_task_tooltip: "更新此任务：[Alt+Enter]",
+      update_annotation: "更新标注",
+      update_current_annotation: "更新当前标注",
+    },
+    history_actions: {
+      undo: "撤销",
+      redo: "重做",
+      reset: "重置",
+    },
+    actions: {
+      show_instructions: "显示标注说明",
+    },
+    region_actions: {
+      show_selected_region: "显示选中区域",
+      hide_selected_region: "隐藏选中区域",
+      delete_selected_region: "删除选中区域",
+    },
     annotation_button: {
       // 评论 Tooltip
       unresolved_comments: "未解决的评论",
@@ -1327,7 +1372,8 @@ export const TRANSLATIONS_ZH = {
   },
   "Label Studio Frontend doesn't exist on the page": "Label Studio 前端不存在于当前页面",
   "The task you are trying to access does not exist or is no longer available.": "您尝试访问的任务不存在或已不可用。",
-  "The project you are trying to access does not exist or is no longer available.": "您尝试访问的项目不存在或已不可用。",
+  "The project you are trying to access does not exist or is no longer available.":
+    "您尝试访问的项目不存在或已不可用。",
 
   assignment_settings: {
     menu_title: "任务分配",
@@ -1347,6 +1393,9 @@ export const TRANSLATIONS_ZH = {
     assigned_by_col: "分配人",
     assigned_at_col: "分配时间",
     action_col: "动作",
+    action_assigned: "已分配",
+    action_reassigned: "已改派",
+    action_unassigned: "已取消分配",
     from_col: "原分配",
     to_col: "新分配",
     by_col: "执行人",
@@ -1362,13 +1411,11 @@ export const TRANSLATIONS_ZH = {
     all_members: "全部成员",
     action_submitted: "已提交",
     action_skipped: "已跳过",
-    action_empty: "空注释提交",
     apply_filters: "应用筛选",
     export_csv: "导出 CSV",
     list_title: "审计记录",
     task_col: "任务ID",
     action_col: "动作",
-    reason_col: "原因",
     actor_col: "执行人",
     time_col: "时间",
     empty: "暂无记录",
@@ -1388,7 +1435,6 @@ export const TRANSLATIONS_ZH = {
     today_completed: "今日完成",
     workflow_rates: "流程占比",
     skip_rate: "跳过占比",
-    empty_rate: "空注释占比",
     trend_title: "近7日完成趋势",
     date_col: "日期",
     count_col: "数量",
@@ -1397,11 +1443,7 @@ export const TRANSLATIONS_ZH = {
     actor_col: "标注员",
     completed_col: "完成数",
     skipped_col: "跳过数",
-    empty_submitted_col: "空注释任务数",
     skip_rate_col: "跳过率",
-    empty_rate_col: "空注释率",
-    skip_reason_title: "跳过原因 Top N",
-    reason_col: "原因",
     empty: "暂无数据",
     loading: "加载中...",
   },

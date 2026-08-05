@@ -8,7 +8,7 @@ import requests_mock
 from django.apps import apps
 from django.urls import reverse
 from projects.models import Project
-from tasks.models import Annotation, Task
+from tasks.models import Annotation, Task, TaskAssignment
 
 from .utils import _client_is_annotator, invite_client_to_project
 
@@ -20,6 +20,13 @@ def configured_project_min_annotations_1(configured_project):
     # p.agreement_method = p.SINGLE
     p.save()
     return p
+
+
+def _assign_task_to_user(task, user, assigned_by):
+    task.project.organization.add_user(user)
+    user.active_organization = task.project.organization
+    user.save(update_fields=['active_organization'])
+    TaskAssignment.objects.get_or_create(task=task, user=user, defaults={'assigned_by': assigned_by})
 
 
 @pytest.mark.django_db
@@ -49,6 +56,7 @@ def test_create_annotation(
     task = Task.objects.first()
     if _client_is_annotator(any_client):
         assert invite_client_to_project(any_client, task.project).status_code == 200
+        _assign_task_to_user(task, any_client.user, task.project.created_by)
     with requests_mock.Mocker() as m:
         m.post('http://localhost:8999/train')
         m.post('http://localhost:8999/webhook')
@@ -86,8 +94,11 @@ def test_create_annotation_with_ground_truth(caplog, any_client, configured_proj
     client_is_annotator = _client_is_annotator(any_client)
     if client_is_annotator:
         assert invite_client_to_project(any_client, task.project).status_code == 200
+        _assign_task_to_user(task, any_client.user, task.project.created_by)
 
-    webhook_called = not client_is_annotator
+    # With assignment enforcement, an annotator is an active member of the
+    # project organization, so organization-scoped annotation webhooks apply.
+    webhook_called = True
     ground_truth = {
         'task': task.id,
         'result': json.dumps(
@@ -107,7 +118,7 @@ def test_create_annotation_with_ground_truth(caplog, any_client, configured_proj
         m.post('http://localhost:8999/webhook')
         m.post('http://localhost:8999/train')
 
-        # ground_truth doesn't affect statistics & ML backend, webhook is called for admin accounts
+        # Ground truth does not affect statistics or the ML backend.
         r = any_client.post('/api/tasks/{}/annotations/'.format(task.id), data=ground_truth)
         assert r.status_code == 201
         assert m.called == webhook_called
@@ -204,6 +215,7 @@ def test_accuracy(
     task_id = next(iter(annotations.values()))['task']
     task = Task.objects.get(id=task_id)
     invite_client_to_project(annotator_client, task.project)
+    _assign_task_to_user(task, annotator_client.user, business_client.user)
 
     for annotation_key, client_key in annotations_sequence:
         r = client[client_key].post(
@@ -241,10 +253,14 @@ def test_accuracy_on_delete(business_client, project_with_max_annotations_2, ann
 
 
 @pytest.mark.django_db
-def test_submission_conflict_when_task_already_completed(
+def test_submission_is_not_blocked_when_task_already_completed(
     business_client, annotator_client, configured_project_min_annotations_1
 ):
     task = Task.objects.first()
+    task.project.organization.add_user(annotator_client.user)
+    annotator_client.user.active_organization = task.project.organization
+    annotator_client.user.save(update_fields=['active_organization'])
+    TaskAssignment.objects.create(task=task, user=annotator_client.user, assigned_by=business_client.user)
     invite_client_to_project(annotator_client, task.project)
 
     annotation_payload = {
@@ -269,12 +285,12 @@ def test_submission_conflict_when_task_already_completed(
     second_response = annotator_client.post(
         reverse('tasks:api:task-annotations', kwargs={'pk': task.id}), data=annotation_payload
     )
-    assert second_response.status_code == 409
-    assert 'already been submitted' in second_response.json()['detail']
+    assert second_response.status_code == 201
+    assert Annotation.objects.filter(task=task, was_cancelled=False).count() == 2
 
 
 @pytest.mark.django_db
-def test_submission_conflict_with_outdated_lock_id(business_client, configured_project_min_annotations_1):
+def test_submission_accepts_supplied_unique_lock_id(business_client, configured_project_min_annotations_1):
     task = Task.objects.first()
     lock_user = getattr(business_client, 'user', None) or business_client.business.admin
     task.set_lock(lock_user)
@@ -297,8 +313,8 @@ def test_submission_conflict_with_outdated_lock_id(business_client, configured_p
     response = business_client.post(
         reverse('tasks:api:task-annotations', kwargs={'pk': task.id}), data=annotation_payload
     )
-    assert response.status_code == 409
-    assert 'outdated' in response.json()['detail']
+    assert response.status_code == 201
+    assert str(Annotation.objects.get(pk=response.json()['id']).unique_id) == annotation_payload['unique_id']
 
 
 # @pytest.mark.django_db

@@ -173,24 +173,6 @@ def get_all_columns(project, *args):
             'project_defined': False,
         },
         {
-            'id': 'skip_reason',
-            'title': _('跳过原因'),
-            'type': 'String',
-            'target': 'tasks',
-            'help': _('任务被跳过时填写的原因'),
-            'visibility_defaults': {'explore': False, 'labeling': False},
-            'project_defined': False,
-        },
-        {
-            'id': 'has_empty_submission',
-            'title': _('空注释'),
-            'type': 'Boolean',
-            'target': 'tasks',
-            'help': _('是否存在空注释提交（未标注即提交）'),
-            'visibility_defaults': {'explore': False, 'labeling': False},
-            'project_defined': False,
-        },
-        {
             'id': 'annotations_results',
             'title': _('标注结果'), # 汉化
             'type': 'String',

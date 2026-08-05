@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 
 from organizations.models import Organization
 from projects.models import Project
-from tasks.models import Task, TaskAssignment, TaskWorkflowAuditLog
+from tasks.models import Annotation, Task, TaskAssignment, TaskWorkflowAuditLog
 
 
 class TaskAssignmentStandaloneTests(TestCase):
@@ -67,83 +67,22 @@ class TaskAssignmentStandaloneTests(TestCase):
         forbidden_response = annotator_client.get(f'/api/tasks/{self.task1.id}?project={self.project.id}')
         self.assertEqual(forbidden_response.status_code, 403)
 
-    def test_skip_empty_audit_and_stats_distinct_empty_task_count(self):
-        annotator_client = self._api_client(self.annotator)
-        owner_client = self._api_client(self.owner)
-
-        self.project.require_comment_on_skip = True
-        self.project.enable_empty_annotation = True
-        self.project.save(update_fields=['require_comment_on_skip', 'enable_empty_annotation'])
-
-        TaskAssignment.objects.create(task=self.task1, user=self.annotator, assigned_by=self.owner)
-        TaskAssignment.objects.create(task=self.task2, user=self.annotator, assigned_by=self.owner)
-
-        bad_skip = annotator_client.post(
-            f'/api/tasks/{self.task1.id}/annotations/',
-            data={'result': [], 'was_cancelled': True},
-            format='json',
-        )
-        self.assertEqual(bad_skip.status_code, 400)
-        self.assertIn('skip_reason', bad_skip.json().get('validation_errors', {}))
-
-        good_skip = annotator_client.post(
-            f'/api/tasks/{self.task1.id}/annotations/',
-            data={'result': [], 'was_cancelled': True, 'skip_reason': 'Blurry image'},
-            format='json',
-        )
-        self.assertEqual(good_skip.status_code, 201)
-
-        empty_submit = annotator_client.post(
-            f'/api/tasks/{self.task2.id}/annotations/',
-            data={'result': [], 'was_cancelled': False},
-            format='json',
-        )
-        self.assertEqual(empty_submit.status_code, 201)
-
-        workflow_response = owner_client.get(f'/api/projects/{self.project.id}/workflow-audit/')
-        self.assertEqual(workflow_response.status_code, 200)
-        workflow_payload = workflow_response.json()
-        self.assertGreaterEqual(workflow_payload['count'], 2)
-
-        # Add one duplicate empty-submitted audit row for the same task and verify stats dedupe by task_id.
-        TaskWorkflowAuditLog.objects.create(
-            project=self.project,
-            task=self.task2,
-            action=TaskWorkflowAuditLog.ACTION_EMPTY_SUBMITTED,
-            actor=self.annotator,
-        )
-
-        stats_response = owner_client.get(f'/api/projects/{self.project.id}/stats/')
-        self.assertEqual(stats_response.status_code, 200)
-        stats = stats_response.json()
-
-        self.assertEqual(stats['workflow']['empty_submitted_count'], 1)
-        self.assertTrue(any(item['reason'] == 'Blurry image' for item in stats['top_skip_reasons']))
-        actor_rows = [item for item in stats['annotators'] if item.get('actor', {}).get('id') == self.annotator.id]
-        self.assertTrue(actor_rows)
-        self.assertEqual(actor_rows[0]['completed'], 0)
-        self.assertEqual(actor_rows[0]['skipped'], 1)
-        self.assertEqual(actor_rows[0]['empty_submitted'], 1)
-
-    def test_skip_reason_cannot_be_bypassed_by_query_was_cancelled_override(self):
+    def test_query_was_cancelled_override_uses_official_skip_behavior(self):
         annotator_client = self._api_client(self.annotator)
 
-        self.project.require_comment_on_skip = True
         self.project.enable_empty_annotation = True
-        self.project.save(update_fields=['require_comment_on_skip', 'enable_empty_annotation'])
+        self.project.save(update_fields=['enable_empty_annotation'])
 
         TaskAssignment.objects.create(task=self.task1, user=self.annotator, assigned_by=self.owner)
 
-        # Try to bypass skip reason validation:
-        # body says not cancelled, but query overrides to cancelled.
         response = annotator_client.post(
             f'/api/tasks/{self.task1.id}/annotations/?project={self.project.id}&was_cancelled=true',
             data={'result': [], 'was_cancelled': False},
             format='json',
         )
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('skip_reason', response.json().get('validation_errors', {}))
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Annotation.objects.get(pk=response.json()['id']).was_cancelled)
 
     def test_submitted_action_is_logged_and_filterable(self):
         annotator_client = self._api_client(self.annotator)

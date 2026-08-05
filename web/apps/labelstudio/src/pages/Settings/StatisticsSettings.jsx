@@ -88,7 +88,6 @@ export const StatisticsSettings = () => {
         key: "workflow_rates",
         title: t("stats_settings.workflow_rates", "Workflow Rates"),
         value: `${t("stats_settings.skip_rate", "Skip")}: ${formatPercent(workflow.skip_rate)}`,
-        subtitle: `${t("stats_settings.empty_rate", "Empty")}: ${formatPercent(workflow.empty_rate)}`,
       },
     ];
   }, [stats, t]);
@@ -96,7 +95,6 @@ export const StatisticsSettings = () => {
   const trend = stats?.activity?.completion_trend ?? [];
   const maxTrendValue = Math.max(1, ...trend.map((item) => item.count ?? 0));
   const annotators = stats?.annotators ?? [];
-  const topSkipReasons = stats?.top_skip_reasons ?? [];
 
   return (
     <div className={cn("stats-settings").toClassName()}>
@@ -157,9 +155,7 @@ export const StatisticsSettings = () => {
                 <th>{t("stats_settings.actor_col", "Annotator")}</th>
                 <th>{t("stats_settings.completed_col", "Completed")}</th>
                 <th>{t("stats_settings.skipped_col", "Skipped")}</th>
-                <th>{t("stats_settings.empty_submitted_col", "Empty Submitted")}</th>
                 <th>{t("stats_settings.skip_rate_col", "Skip Rate")}</th>
-                <th>{t("stats_settings.empty_rate_col", "Empty Rate")}</th>
               </tr>
             </thead>
             <tbody>
@@ -168,39 +164,12 @@ export const StatisticsSettings = () => {
                   <td>{item?.actor?.display_name ?? "-"}</td>
                   <td>{item.completed ?? 0}</td>
                   <td>{item.skipped ?? 0}</td>
-                  <td>{item.empty_submitted ?? 0}</td>
                   <td>{formatPercent(item.skip_rate)}</td>
-                  <td>{formatPercent(item.empty_rate)}</td>
                 </tr>
               ))}
               {annotators.length === 0 && (
                 <tr>
-                  <td colSpan={6}>{t("stats_settings.empty", "No data")}</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className={cn("settings-wrapper").toClassName()}>
-          <h3>{t("stats_settings.skip_reason_title", "Top Skip Reasons")}</h3>
-          <table className={cn("assignment-settings").elem("table").toClassName()}>
-            <thead>
-              <tr>
-                <th>{t("stats_settings.reason_col", "Reason")}</th>
-                <th>{t("stats_settings.count_col", "Count")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topSkipReasons.map((item) => (
-                <tr key={`${item.reason}-${item.count}`}>
-                  <td>{item.reason}</td>
-                  <td>{item.count}</td>
-                </tr>
-              ))}
-              {topSkipReasons.length === 0 && (
-                <tr>
-                  <td colSpan={2}>{t("stats_settings.empty", "No data")}</td>
+                  <td colSpan={4}>{t("stats_settings.empty", "No data")}</td>
                 </tr>
               )}
             </tbody>

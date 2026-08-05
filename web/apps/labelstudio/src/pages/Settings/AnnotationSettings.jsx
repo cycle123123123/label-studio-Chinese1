@@ -67,6 +67,18 @@ export const AnnotationSettings = () => {
             <Divider height={32} />
 
             <Form.Row columnCount={1}>
+              <div className={cn("settings-wrapper").elem("header").toClassName()}>
+                {t("annotation_settings.workflow_policy_title", "Workflow Policies")}
+              </div>
+              <Toggle
+                label={t("annotation_settings.allow_skip", "Allow annotators to skip tasks")}
+                name="show_skip_button"
+              />
+            </Form.Row>
+
+            <Divider height={32} />
+
+            <Form.Row columnCount={1}>
               <br />
               <div className={cn("settings-wrapper").elem("header").toClassName()}>
                 {t("annotation_settings.prelabeling_title", "Prelabeling")}

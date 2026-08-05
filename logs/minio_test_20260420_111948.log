@@ -1,0 +1,2 @@
+2026-04-20 11:19:48,589 - ERROR - 请设置正确的Access Key和Secret Key
+2026-04-20 11:19:48,589 - ERROR - 可以直接在脚本中修改，或设置环境变量 MINIO_ACCESS_KEY 和 MINIO_SECRET_KEY

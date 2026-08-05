@@ -670,12 +670,10 @@ class TaskAssignmentAuditLog(models.Model):
 class TaskWorkflowAuditLog(models.Model):
     ACTION_SUBMITTED = 'submitted'
     ACTION_SKIPPED = 'skipped'
-    ACTION_EMPTY_SUBMITTED = 'empty_submitted'
 
     ACTION_CHOICES = [
         (ACTION_SUBMITTED, 'Submitted'),
         (ACTION_SKIPPED, 'Skipped'),
-        (ACTION_EMPTY_SUBMITTED, 'Empty Submitted'),
     ]
 
     project = models.ForeignKey(
@@ -706,12 +704,6 @@ class TaskWorkflowAuditLog(models.Model):
         blank=True,
         related_name='task_workflow_audit_as_actor',
         help_text='User who performed workflow action',
-    )
-    reason = models.TextField(
-        null=True,
-        blank=True,
-        default='',
-        help_text='Optional reason for workflow action, e.g. skip reason',
     )
     created_at = models.DateTimeField(_('created at'), auto_now_add=True, help_text='Creation time')
 
@@ -815,18 +807,6 @@ class Annotation(AnnotationMixin, FsmHistoryStateModel):
         help_text='Last user who updated this annotation',
     )
     was_cancelled = models.BooleanField(_('was cancelled'), default=False, help_text='User skipped the task')
-    skip_reason = models.TextField(
-        _('skip reason'),
-        null=True,
-        blank=True,
-        default='',
-        help_text='Reason provided by annotator when skipping task',
-    )
-    is_empty_submission = models.BooleanField(
-        _('is empty submission'),
-        default=False,
-        help_text='True when annotation was submitted without any result regions',
-    )
     ground_truth = models.BooleanField(
         _('ground_truth'),
         default=False,
@@ -911,7 +891,6 @@ class Annotation(AnnotationMixin, FsmHistoryStateModel):
             models.Index(fields=['task', 'ground_truth']),
             models.Index(fields=['task', 'was_cancelled']),
             models.Index(fields=['was_cancelled']),
-            models.Index(fields=['is_empty_submission']),
         ]
 
     def created_ago(self):

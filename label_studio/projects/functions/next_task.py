@@ -373,6 +373,14 @@ def get_next_task(
 ) -> Tuple[Union[Task, None], str]:
     logger.debug(f'get_next_task called. user: {user}, project: {project}, dm_queue: {dm_queue}')
 
+    if assigned_flag:
+        # The caller may provide a data-manager queryset containing all tasks.
+        # Apply the assignment boundary here so every next-task entry point
+        # (project API and data-manager action) uses the same task pool.
+        from tasks.assignment import filter_tasks_for_user_assignments
+
+        prepared_tasks, _ = filter_tasks_for_user_assignments(prepared_tasks, project, user)
+
     with conditional_atomic(predicate=db_is_not_sqlite):
         next_task = None
         use_task_lock = True

@@ -125,7 +125,6 @@ export const API_CONFIG = {
           custom_script: null,
           comment_classification_config: null,
           duplication_done: null,
-          require_comment_on_skip: false,
           data_types: {
             text: "Text",
           },

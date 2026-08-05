@@ -145,16 +145,9 @@ export class LSFWrapper {
       if (this.project.show_annotation_history) {
         interfaces.push("next-task");
       }
-      if (this.project.show_skip_button) {
-        interfaces.push("skip");
-      }
       if (isFF(FF_REGION_VISIBILITY_FROM_URL)) {
         interfaces.push("annotations:copy-link");
       }
-    }
-
-    if (this.project.require_comment_on_skip) {
-      interfaces.push("comments:skip");
     }
 
     if (this.datamanager.hasInterface("instruction")) {
@@ -184,7 +177,7 @@ export class LSFWrapper {
 
     if (!this.shouldLoadNext()) {
       interfaces = interfaces.filter((item) => {
-        return !["topbar:prevnext"].includes(item);
+        return !["topbar:prevnext", "skip"].includes(item);
       });
     }
 
@@ -617,20 +610,6 @@ export class LSFWrapper {
     if (status === 200 || status === 201) {
       this.datamanager.invoke("toast", { message: successMessage, type: "info" });
     } else if (status !== undefined) {
-      if (status === 409) {
-        const detail = result?.response?.detail;
-        const conflictMessage =
-          typeof detail === "string"
-            ? detail
-            : "This task was changed by another annotator. Reload the task and try again.";
-
-        this.datamanager.invoke("toast", {
-          message: conflictMessage,
-          type: "error",
-        });
-        return;
-      }
-
       const requestId = result?.$meta?.headers?.get("x-ls-request-id");
       const supportUrl = requestId ? `${SUPPORT_URL}?${SUPPORT_URL_REQUEST_ID_PARAM}=${requestId}` : SUPPORT_URL;
 
@@ -677,7 +656,8 @@ export class LSFWrapper {
 
     this.showOperationToast(status, "Annotation saved successfully", "Annotation is not saved", result);
 
-    if (exitStream) return this.exitStream();
+    if (status < 400 && exitStream) await this.exitStream();
+    return result;
   };
 
   /** @private */
@@ -710,10 +690,13 @@ export class LSFWrapper {
 
     this.datamanager.invoke("updateAnnotation", ls, annotation, result);
 
-    if (exitStream) return this.exitStream();
-
     if (status >= 400) {
-      return;
+      return result;
+    }
+
+    if (exitStream) {
+      await this.exitStream();
+      return result;
     }
 
     const isRejectedQueue = isDefined(task.default_selected_annotation);
@@ -724,6 +707,7 @@ export class LSFWrapper {
     } else {
       await this.loadTask(this.task.id, annotation.pk, true);
     }
+    return result;
   };
 
   deleteDraft = async (id) => {
@@ -835,7 +819,7 @@ export class LSFWrapper {
     return response;
   };
 
-  onSkipTask = async (_, { comment, skip_reason } = {}) => {
+  onSkipTask = async (_, { comment } = {}) => {
     const result = await this.submitCurrentAnnotation(
       "skipTask",
       async (taskID, body) => {
@@ -843,12 +827,7 @@ export class LSFWrapper {
         const params = { taskID };
         const options = { body: { ...annotation, was_cancelled: true } };
 
-        const reason = (skip_reason ?? comment)?.trim?.() ?? skip_reason ?? comment;
-
-        if (reason) {
-          options.body.comment = reason;
-          options.body.skip_reason = reason;
-        }
+        if (comment) options.body.comment = comment;
 
         if (id !== undefined) params.annotationID = id;
 
@@ -865,6 +844,7 @@ export class LSFWrapper {
     const status = result?.$meta?.status;
 
     this.showOperationToast(status, "Task skipped successfully", "Task is not skipped", result);
+    return result;
   };
 
   onUnskipTask = async () => {
@@ -921,6 +901,8 @@ export class LSFWrapper {
   };
 
   shouldLoadNext = () => {
+    if (!this.labelStream) return false;
+
     if (!this.labelStream) return !!this.project?.show_annotation_history;
 
     // validating if URL is from notification, in case of notification it shouldn't load next task

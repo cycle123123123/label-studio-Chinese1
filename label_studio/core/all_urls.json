@@ -222,6 +222,30 @@
         "decorators": ""
     },
     {
+        "url": "/api/projects/<int:pk>/assignments/",
+        "module": "projects.api.ProjectAssignmentsAPI",
+        "name": "projects:api:project-assignments",
+        "decorators": ""
+    },
+    {
+        "url": "/api/projects/<int:pk>/assignment-audit/",
+        "module": "projects.api.ProjectAssignmentAuditLogAPI",
+        "name": "projects:api:project-assignment-audit",
+        "decorators": ""
+    },
+    {
+        "url": "/api/projects/<int:pk>/workflow-audit/",
+        "module": "projects.api.ProjectWorkflowAuditLogAPI",
+        "name": "projects:api:project-workflow-audit",
+        "decorators": ""
+    },
+    {
+        "url": "/api/projects/<int:pk>/stats/",
+        "module": "projects.api.ProjectStatisticsAPI",
+        "name": "projects:api:project-stats",
+        "decorators": ""
+    },
+    {
         "url": "/api/templates/",
         "module": "projects.api.TemplateListAPI",
         "name": "projects:api-templates:template-list",

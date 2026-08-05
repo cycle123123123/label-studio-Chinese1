@@ -189,7 +189,11 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
       buttons.push(<UnskipButton key="unskip" disabled={disabled} store={store} />);
     } else {
       if (store.hasInterface("skip")) {
-        buttons.push(<SkipButton key="skip" disabled={disabled} store={store} />);
+        const onSkipWithComment = (e: React.MouseEvent, action: () => any) => {
+          handleActionWithComments(e, action, "Please enter a comment before skipping");
+        };
+
+        buttons.push(<SkipButton key="skip" disabled={disabled} store={store} onSkipWithComment={onSkipWithComment} />);
       }
 
       if (store.hasInterface("next-task")) {
@@ -200,9 +204,6 @@ export const Controls = controlsInjector<{ annotation: MSTAnnotation }>(
             look="outlined"
             disabled={disabled}
             onClick={async () => {
-              const selected = store.annotationStore?.selected;
-
-              selected?.submissionInProgress();
               await store.goToNextTask();
             }}
           >

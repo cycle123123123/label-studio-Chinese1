@@ -123,6 +123,7 @@ type MSTAnnotation = {
   isNonEditableDraft: boolean;
 
   submissionInProgress: () => void;
+  submissionFinished: () => void;
 };
 
 type MSTUserExtended = {
